@@ -4,7 +4,7 @@ O configurador está no mesmo executável do instalador. Para uma instalação r
 
 ## Gráficos
 
-- **Resolução de renderização:** a escala inteira padrão parte de `1× = 720p` e vai para `2× = 1440p` e `3× = 2160p` de referência vertical (a largura acompanha a proporção). Há também o modo experimental **1080p** (guest `1920×1080` em escala `1×`, travado em FSR Native AA e proporção 16:9). É diferente do tamanho da janela/saída do monitor.
+- **Resolução de renderização:** escala inteira com `1× = 720p`, `2× = 1440p` e `3× = 2160p` de referência vertical (a largura acompanha a proporção). É diferente do tamanho da janela/saída do monitor.
 - **Proporção automática:** usa a tela em fullscreen ou a área da janela na inicialização. Também há 16:9 e 21:9 manuais.
 - **API gráfica.** Automático deixa o runtime escolher. DirectX 12 e Vulkan oferecem FSR 4.1.2 em hardware compatível. Reinicie após trocar a API e procure “FSR provider active” no log.
 - **MSAA:** padrão inicial. Para usar os modos FSR, selecione FSR no antisserrilhado.

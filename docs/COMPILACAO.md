@@ -6,7 +6,7 @@ Estas instruções são para desenvolvedores. Jogadores devem usar o ZIP da rele
 
 - A base do projeto é `eaf3ad4b8701de537ea55411f7b413ad98bf73f1` do fork creditado.
 - ReXGlue: `f5337cdc947ff6d4c4196737e2c807a48f2a1fc2`.
-- `patches/rexglue-release.patch` consolida todas as modificações do SDK usadas nesta distribuição (incluindo integração do upscaler/FG Vulkan do SDK AMD 2.4, correções locais de teclado/mouse, suporte ao modo experimental 1080p, HUD de métricas, baixa latência Anti-Lag 2/Reflex e correções D3D12/Vulkan). A revisão dos headers, do loader e dos provedores AMD é fixada no manifesto `scripts/amd-fsr-manifest.json`. A validação completa de teclado/mouse durante uma corrida continua pendente.
+- `patches/rexglue-release.patch` consolida todas as modificações do SDK usadas nesta distribuição (incluindo integração do upscaler/FG Vulkan do SDK AMD 2.4, correções locais de teclado/mouse, HUD de métricas, baixa latência Anti-Lag 2/Reflex e correções D3D12/Vulkan). A revisão dos headers, do loader e dos provedores AMD é fixada no manifesto `scripts/amd-fsr-manifest.json`. A validação completa de teclado/mouse durante uma corrida continua pendente.
 - Alterações locais de FFmpeg acompanham um patch separado; revisões de todos os submódulos estão em `patches/dependencies.json`.
 - Provedores AMD oficiais: revisão e hashes fixados em `scripts/amd-fsr-manifest.json`. Não são algoritmos de autoria deste fork.
 

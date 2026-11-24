@@ -60,7 +60,7 @@ Ao abrir o instalador/configurador com acesso à internet, ele consulta automati
 ### Gráficos, Ultrawide, FSR, Frame Generation e Baixa Latência
 - **Proporção Automática e Ultrawide:** suporte a Automático, `16:9` e `21:9` com HUD posicionado nos cantos e correções de proporção para telefone, garagem, painéis, GPS, ícones e cursor móvel.
 - **Perfis gráficos unificados:** *Mais desempenho*, *Equilibrado* e *Native AA* sincronizados entre o configurador e o menu do jogo (`config/graphics_profiles.json`).
-- **Resolução interna:** escala inteira padrão **`720p (1×)` → `1440p (2×)` → `2160p (3×)`**. Há também o modo experimental **`1080p`** (guest `1920×1080` em escala `1×`, travado em FSR Native AA e proporção 16:9, sem ultrawide), além de limites de FPS estendidos (`30`, `40`, `45`, `50`, `60`, `90`, `120`, `144` ou sem limite).
+- **Resolução interna:** escala inteira **`720p (1×)` → `1440p (2×)` → `2160p (3×)`**, além de limites de FPS estendidos (`30`, `40`, `45`, `50`, `60`, `90`, `120`, `144` ou sem limite).
 - **AMD FidelityFX & Baixa Latência:**
   - **FSR 4.1.2** (*Native AA*, *Qualidade*, *Equilibrado*, *Desempenho* + nitidez ajustável) em **DirectX 12** e **Vulkan** em GPUs compatíveis.
   - **Frame Generation 4.0.2** em DirectX 12 e em Vulkan experimental (requer FSR, HDR desligado e reinício).
