@@ -4,7 +4,7 @@ O configurador está no mesmo executável do instalador. Para uma instalação r
 
 ## Gráficos
 
-- **Resolução de renderização:** 1× = 720p, 2× = 1440p, 3× = 2160p de referência vertical. A largura acompanha a proporção. É diferente do tamanho da janela/saída do monitor.
+- **Resolução de renderização:** a escala inteira padrão parte de `1× = 720p` e vai para `2× = 1440p` e `3× = 2160p` de referência vertical (a largura acompanha a proporção). Há também o modo experimental **1080p** (guest `1920×1080` em escala `1×`, travado em FSR Native AA e proporção 16:9). É diferente do tamanho da janela/saída do monitor.
 - **Proporção automática:** usa a tela em fullscreen ou a área da janela na inicialização. Também há 16:9 e 21:9 manuais.
 - **API gráfica.** Automático deixa o runtime escolher. DirectX 12 e Vulkan oferecem FSR 4.1.2 em hardware compatível. Reinicie após trocar a API e procure “FSR provider active” no log.
 - **MSAA:** padrão inicial. Para usar os modos FSR, selecione FSR no antisserrilhado.
@@ -36,16 +36,16 @@ O renderizador nativo Plume, MSAA 4×/8×, FXAA e SMAA presentes em outras recom
 
 No Windows, pressione **F12** durante o jogo para salvar a saída gráfica em PNG na subpasta `screenshots` da instalação, com data e hora no nome. O recurso pode ser desligado no configurador, na aba **Controles** do menu de pausa ou com `mcla_screenshot_hotkey = false` no `mcla.toml`. O configurador oferece o botão **Abrir capturas de tela**. A captura utiliza a resolução da saída disponibilizada pelo presenter do ReXGlue, e pode causar uma breve pausa ao ler a imagem da GPU. Se o presenter ainda não tiver uma imagem do jogo, a tentativa é registrada no log.
 
-## Perfil e controles
+## Controles, Rádio e Mundo
 
 O nome inicial é **User**. Escolha até 15 caracteres ASCII aceitos pelo campo. Alterar o nome pode selecionar outra pasta de perfil; os saves antigos não são apagados.
 
 Os ícones começam como Xbox. Você pode selecionar PlayStation ou Automático. A escolha muda as indicações visuais e não substitui a configuração física do controle.
 
-O painel **Perfil e controles** também permite ativar o teclado e o mouse, ajustar a sensibilidade da câmera e configurar a rádio de arquivos MP3. As mesmas opções principais estão nas abas **Controles** e **Rádio MP3** do menu de pausa.
+A aba **Controles** também permite ativar teclado e mouse (`MnK`), ajustar a sensibilidade do mouse, ligar/desligar a **vibração** e definir a **dead zone** dos analógicos esquerdo e direito. As opções de áudio e ambiente ficam na aba **Rádio e Mundo** do configurador (e em **Controles**, **Mundo e câmera** e **Rádio MP3** no menu de pausa do jogo).
 
 - **Dirigir:** W acelera, S freia ou dá ré, A e D esterçam; as setas navegam pelos menus. Espaço, Enter e Backspace atendem às ações comuns do controle. A câmera usa o mouse quando habilitado; I/J/K/L são alternativas pelo teclado. Os atalhos dependem do contexto do jogo e podem ser alterados em `mcla.toml`.
-- **Rádio MP3:** coloque arquivos `.mp3` na pasta `radio` ao lado do executável, ou escolha outra pasta no configurador. Ative-a em **Rádio MP3**, no menu de pausa, ou em **Perfil e controles** no configurador. **F9** pausa/retoma, **F10** avança, **Shift+F10** volta; **Ctrl+F9/F10** baixa/aumenta o volume. O menu oferece volume, anterior/próxima, identificação da faixa e **Reler pasta**, sem reiniciar. Um aviso temporário mostra o nome do arquivo, posição na lista e volume. Ao terminar uma faixa, passa à seguinte; arquivos inválidos são pulados. O padrão pausa ao perder foco. A opção **Mutar trilha** silencia somente a música nativa enquanto um MP3 estiver tocando, restaurando o volume anterior ao pausar ou desligar a rádio; vozes e efeitos continuam. Pasta vazia ou sem arquivos reproduzíveis não silencia a música nativa. O recurso inicia desligado.
+- **Rádio MP3:** coloque arquivos `.mp3` na pasta `radio` ao lado do executável, ou escolha outra pasta no configurador. Ative-a em **Rádio e Mundo** no configurador ou em **Rádio MP3** no menu de pausa. **F9** pausa/retoma, **F10** avança, **Shift+F10** volta; **Ctrl+F9/F10** baixa/aumenta o volume no player separado. No menu de pausa há volume, anterior/próxima, identificação da faixa e **Reler pasta**, sem reiniciar. Com **Inserir MP3s nas estações do jogo** ativado, as músicas entram na estação ALL e nas estações por gênero (ID3/subpasta). Pasta vazia ou sem arquivos reproduzíveis não silencia a música nativa. O recurso inicia desligado.
 
 O uso de teclado/mouse e rádio MP3 requer a versão do jogo com esses recursos compilados. A navegação e a resposta dos controles devem ser validadas dentro de uma corrida, além de sua presença nos menus.
 
@@ -60,14 +60,14 @@ O uso de teclado/mouse e rádio MP3 requer a versão do jogo com esses recursos 
 | REAL CLOCK | `mcla_time_realtime` | A hora do mundo segue o relógio do PC. |
 | DAY SPEED | `mcla_time_speed` | Velocidade do ciclo dia e noite (0 para, 1 normal, até 10). Vale com a hora automática. |
 | CARBON FIBER (aba) | guardado no carro, não no `mcla.toml` | Escolha as peças em carbono. Só fica ativa depois que o seu carro foi desenhado uma vez. |
-| Botão "Preparar shaders" (aba Jogar do configurador) | executa `mcla.exe --mcla_prepare_shaders=true` | Reconstrói os shaders a partir dos arquivos do seu jogo e importa o pacote. Útil depois de trocar de placa de vídeo ou de driver. O jogo precisa estar fechado. |
+| Botão "Preparar shaders" (aba Início do configurador) | executa `mcla.exe --mcla_prepare_shaders=true` | Reconstrói os shaders a partir dos arquivos do seu jogo e importa o pacote. Útil depois de trocar de placa de vídeo ou de driver. O jogo precisa estar fechado. |
 | SPEED UNITS (WORLD AND CAMERA) | `mcla_speed_units` = `mph` ou `kmh` | Velocímetro, distâncias e a placa de limite de velocidade do radar. |
 | MP3S IN THE GAME RADIO (MP3 RADIO) | `mcla_radio_in_game` = `true` ou `false` | As músicas da pasta do rádio MP3 (com subpastas) entram no rádio do jogo: na estação ALL e na estação do estilo (o gênero da tag ID3 ou, sem ela, o nome da subpasta; o que não se encaixa vai para ECLECTIC), com o nome "música - artista" das tags. São escolhidas pelo menu de rádio e pelo direcional como as originais, e podem ser adicionadas à CUSTOM PLAYLIST pelo menu. Vale ao reiniciar o jogo. Ligada, o player separado (F9/F10) fica desligado. O volume segue o volume de música do jogo vezes MUSIC VOLUME. |
 | SHOW SONG NAME (MP3 RADIO) | `mcla_radio_announce` | Mostra "TOCANDO: nome" na faixa abaixo do velocímetro quando a música muda. |
 
 Sem linha de menu: `skip_overwritten_transfers` (desligado), `d3d12_msaa_line_guard` (ligado), `mcla_ui_countdown_fix` (ligado), `mcla_shader_pack_auto` (ligado). Para repetir a preparação dos shaders depois de trocar de driver, rode `mcla.exe --mcla_prepare_shaders=true`.
 
-## Saves e dados
+## Saves e Mods
 
 Os dados pertencem à instalação do jogador. A aba mostra o caminho, permite exportar um ZIP e **restaurar um ZIP exportado pelo próprio configurador** com o jogo fechado. Na restauração, os caminhos internos são validados para bloquear travessia de diretórios, duplicação e conflitos entre pastas e arquivos. O total extraído é limitado a 10 GB e 20.000 entradas. Os arquivos são extraídos primeiro para uma pasta temporária ao lado dos dados, e os dados existentes são movidos para uma pasta de segurança (`.antes-da-restauracao-*`) antes da troca. A confirmação mostra o total de entradas e tamanho descompactado. A importação de saves do Xenia/RPCS3 ainda requer conversão específica. A restauração precisa de espaço livre suficiente para manter temporariamente os dados originais e os restaurados.
 
@@ -81,4 +81,4 @@ O botão **Recuperar backup automático** abre a pasta das cópias com o ZIP mai
 
 ## Jogar com mods
 
-Copie a pasta completa de dados do jogo para outra pasta e aplique o mod nessa cópia. No PowerShell da instalação, execute `./Jogar-Com-Mods.ps1 "D:\Jogos\MCLA modificado"`. O jogo usa os dados escolhidos e guarda o progresso das sessões com mods em `userdata-mods`. Para voltar à campanha principal, abra o jogo pelo atalho habitual.
+Na aba **Saves e Mods** do configurador, selecione uma cópia da pasta `game` com as modificações aplicadas e clique em **Iniciar com Mods**. Você também pode executar `./Jogar-Com-Mods.ps1 "D:\Jogos\MCLA modificado"` no PowerShell da instalação. O jogo usa os dados escolhidos e guarda o progresso das sessões com mods separadamente em `userdata-mods`. Para voltar à campanha principal, abra o jogo pelo atalho habitual ou pelo botão **JOGAR**.

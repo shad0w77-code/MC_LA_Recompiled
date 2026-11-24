@@ -8,7 +8,7 @@ O trabalho parte de mcla-recomp e do fork de RenanQueiroz, com ReXGlue. A recomp
 
 Textos de recursos e strings usadas pelo código foram catalogados e substituídos por traduções. Há 2.815 registros nativos e 317 linhas de diálogo, incluindo 76 recursos de legendas. A preparação aplica as alterações aos dados extraídos da ISO do usuário. Não há redistribuição do arquivo de recursos original neste repositório.
 
-A revisão incluiu acentos, largura dos rótulos, contadores/variáveis, mensagens do telefone, missões e garagem. Nomes próprios e marcas foram preservados. A existência de uma linha traduzida no catálogo não garante que todas as situações da campanha já tenham sido verificadas em tela.
+A revisão incluiu acentos, correção dos glifos `Õ`/`õ` nas fontes de missões (`localization/mission_font.py`, corrigindo `RESUMO DAS MISSÕES`) e do telefone Sidekick (`localization/phone_font.py`), largura dos rótulos, contadores/variáveis, mensagens e garagem. Nomes próprios e marcas foram preservados. A existência de uma linha traduzida no catálogo não garante que todas as situações da campanha já tenham sido verificadas em tela.
 
 ## Proporção e interface
 
@@ -36,9 +36,9 @@ Itens do mesmo fork que **não** foram trazidos: o assistente de espera do Refle
 
 ## Instalador e configurador
 
-A interface Windows usa WPF e C#. Um pacote interno com manifesto SHA-256 contém runtime e ferramentas de preparação. A ISO é fornecida pelo jogador; a preparação extrai dados, aplica traduções e grava uma instalação com somente os arquivos necessários para jogar e configurar.
+A interface Windows usa WPF e C# (tema **LA Midnight Racing** com barra de título escura integrada e animações nativas). Um pacote interno com manifesto SHA-256 contém runtime e ferramentas de preparação. A ISO é fornecida pelo jogador; a preparação extrai dados, aplica traduções/patches de fonte e grava uma instalação com somente os arquivos necessários para jogar e configurar.
 
-Instalação e configuração usam o mesmo executável. O atalho opcional inicia mcla.exe diretamente. Configurações existentes são lidas localmente; arquivos pessoais do mantenedor não fazem parte do pacote.
+Instalação, configuração, backups automáticos ao jogar, modo isolado para mods (`userdata-mods`) e o **atualizador automático via GitHub Releases** (`UpdateChecker.cs` com verificação SHA-256) usam o mesmo executável. O atalho opcional inicia `mcla.exe` diretamente. Configurações existentes são lidas localmente; arquivos pessoais do mantenedor não fazem parte do pacote.
 
 ## Validação
 

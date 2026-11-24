@@ -60,7 +60,7 @@ Ao abrir o instalador/configurador com acesso à internet, ele consulta automati
 ### Gráficos, Ultrawide, FSR, Frame Generation e Baixa Latência
 - **Proporção Automática e Ultrawide:** suporte a Automático, `16:9` e `21:9` com HUD posicionado nos cantos e correções de proporção para telefone, garagem, painéis, GPS, ícones e cursor móvel.
 - **Perfis gráficos unificados:** *Mais desempenho*, *Equilibrado* e *Native AA* sincronizados entre o configurador e o menu do jogo (`config/graphics_profiles.json`).
-- **Resolução interna e 1080p nativo:** `720p (1×)`, **`1080p Nativo`**, `1440p (2×)` e `2160p (3×)`, além de limites de FPS estendidos (`30`, `40`, `45`, `50`, `60`, `90`, `120`, `144` ou sem limite).
+- **Resolução interna:** escala inteira padrão **`720p (1×)` → `1440p (2×)` → `2160p (3×)`**. Há também o modo experimental **`1080p`** (guest `1920×1080` em escala `1×`, travado em FSR Native AA e proporção 16:9, sem ultrawide), além de limites de FPS estendidos (`30`, `40`, `45`, `50`, `60`, `90`, `120`, `144` ou sem limite).
 - **AMD FidelityFX & Baixa Latência:**
   - **FSR 4.1.2** (*Native AA*, *Qualidade*, *Equilibrado*, *Desempenho* + nitidez ajustável) em **DirectX 12** e **Vulkan** em GPUs compatíveis.
   - **Frame Generation 4.0.2** em DirectX 12 e em Vulkan experimental (requer FSR, HDR desligado e reinício).
@@ -140,6 +140,22 @@ Capturas registradas durante o desenvolvimento. Opções gráficas e desempenho 
 - Melhorias ainda não testadas no Linux.
 
 ---
+
+## Créditos e repositórios de referência
+
+Este projeto reúne contribuições, código e ideias dos seguintes repositórios no GitHub:
+
+| Projeto / Autor | Papel no projeto |
+| --- | --- |
+| [holdmysocks/mcla-recomp](https://github.com/holdmysocks/mcla-recomp) | Recompilação estática original de Midnight Club: Los Angeles Complete Edition |
+| [RenanQueiroz/mcla-recomp](https://github.com/RenanQueiroz/mcla-recomp) | Base direta deste fork, desempenho dos renderizadores, shaders pré-compilados, Anti-Lag 2/Reflex, Smooth UI e correções |
+| [rexglue/rexglue-sdk](https://github.com/rexglue/rexglue-sdk) | SDK, runtime e ferramentas de recompilação ReXGlue |
+| [mzzvxm/LARecomp](https://github.com/mzzvxm/LARecomp) | Referências funcionais de câmera livre, clima/hora, fibra de carbono, km/h, rádio MP3, countdown e checkpoint sweep |
+| [Dyotson/ForzaHorizon1-ReImagined](https://github.com/Dyotson/ForzaHorizon1-ReImagined) | Otimizações Vulkan portadas pela base e wrapper de conquistas (MIT) |
+| [Dyotson/RecompiledHaloReach](https://github.com/Dyotson/RecompiledHaloReach) | Wrapper de toast de conquistas em `src/achievement_toast.h` (MIT) |
+| [GPUOpen-LibrariesAndSDKs/FidelityFX-SDK](https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK) & [rexglue/FidelityFX-SDK](https://github.com/rexglue/FidelityFX-SDK) | AMD FidelityFX FSR e Frame Generation |
+| [xenia-project/xenia](https://github.com/xenia-project/xenia) & [xenia-canary/xenia-canary](https://github.com/xenia-canary/xenia-canary) | Base de emulação e shaders de resolve/carregamento de texturas (BSD-3-Clause) |
+| [madler/zlib (puff)](https://github.com/madler/zlib/tree/develop/contrib/puff) | Design do descompressor deflate em `src/shader_prepare.cpp` (zlib) |
 
 ## Licença e autoria
 

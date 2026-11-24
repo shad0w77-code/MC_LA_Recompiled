@@ -17,7 +17,7 @@ Lançamento consolidado do **Midnight Club: Los Angeles Complete Edition** para 
 - **Tradução PT-BR completa e fontes corrigidas:** menus, telefone, dicas, missões, garagem/customização e legendas disponíveis em português, incluindo correção dos glifos `Õ`/`õ` em `RESUMO DAS MISSÕES` e no Sidekick.
 - **Ultrawide e proporção automática:** suporte automático, 16:9 e 21:9 com HUD nos cantos e correções em telefone, garagem, painéis, GPS, ícones e cursor.
 - **Shaders pré-compilados:** `545407F8.shaderpack` incluído e preparado automaticamente para reduzir engasgos na primeira partida.
-- **Gráficos, FSR, Frame Generation e Baixa Latência:** perfis unificados (*Mais desempenho*, *Equilibrado*, *Native AA*), modo 1080p nativo, FSR 4.1.2 e Frame Generation 4.0.2 em DirectX 12 e Vulkan experimental (SDR), AMD Anti-Lag 2 / NVIDIA Reflex (`low_latency`) e **Smooth UI** acima de 50 FPS.
+- **Gráficos, FSR, Frame Generation e Baixa Latência:** perfis unificados (*Mais desempenho*, *Equilibrado*, *Native AA*), escala inteira (`720p`, `1440p`, `2160p`) mais modo experimental `1080p` (16:9, Native AA), FSR 4.1.2 e Frame Generation 4.0.2 em DirectX 12 e Vulkan experimental (SDR), AMD Anti-Lag 2 / NVIDIA Reflex (`low_latency`) e **Smooth UI** acima de 50 FPS.
 - **Customização, Mundo e Rádio MP3:** aba **CARBON FIBER** no jogo, horário/clima/relógio real/velocidade do dia, câmera livre (`F8`), unidades em **km/h**, rádio MP3 integrada às estações do jogo (com subpastas e tags ID3), vibração, dead zones individuais e melhorias de teclado/mouse (`MnK`).
 - **Backups automáticos de saves:** clicar em **▶ JOGAR** gera backup ZIP automático (mantendo as 10 cópias mais recentes) com restauração segura validada.
 

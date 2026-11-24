@@ -7,9 +7,9 @@ Arquivos públicos de tradução, sem dumps de texto original ou arquivos do jog
 - `subtitle-files.json`: índices e hashes dos 76 recursos de legendas.
 - `host-menu-texts.json`: rótulos dos menus criados pelo código deste fork.
 
-O build central executa `localization/build_ptbr.py` e `localization/generate_menu.py`. O primeiro usa somente a cópia do jogo fornecida localmente para criar `out/localization/pt-BR/game/`. Verifica hashes de origem, tags, recursos finais e preservação dos outros idiomas. Uma falha não substitui o arquivo traduzido anterior. Os demais arquivos do jogo usam hardlinks ou cópias; não devem ser editados no diretório de saída.
+O build central executa `localization/build_ptbr.py`, `localization/mission_font.py`, `localization/phone_font.py` e `localization/generate_menu.py`. O primeiro usa somente a cópia do jogo fornecida localmente para criar `out/localization/pt-BR/game/`, e os dois seguintes adicionam os glifos `Õ`/`õ` às fontes de missões e do Sidekick. Verifica hashes de origem, tags, recursos finais e preservação dos outros idiomas. Uma falha não substitui o arquivo traduzido anterior. Os demais arquivos do jogo usam hardlinks ou cópias; não devem ser editados no diretório de saída.
 
-Menus, dicas, telefone, missões e customização foram conferidos durante os testes. As falas identificadas foram traduzidas e verificadas no arquivo; ainda é necessária a conferência visual de toda a campanha. Não inclui dublagem. Nomes próprios e o velocímetro em MPH são preservados.
+Menus, dicas, telefone, missões e customização foram conferidos durante os testes. As falas identificadas foram traduzidas e verificadas no arquivo; ainda é necessária a conferência visual de toda a campanha. Não inclui dublagem. Nomes próprios permanecem no original; o velocímetro pode alternar entre `mph` e `km/h` via `SPEED UNITS`.
 
 Para gerar manualmente, depois de preparar o SDK e extrair sua ISO:
 

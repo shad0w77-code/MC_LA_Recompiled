@@ -11,16 +11,18 @@ O histórico Git da base foi preservado para manter a autoria das contribuiçõe
 
 ## Este fork
 
-**Araujo** — manutenção de Midnight Club L.A. Recompiled, tradução PT-BR, integração/validação das melhorias FSR e Frame Generation, suporte de proporção automática/ultrawide e ajustes de interface. Desenvolvimento com assistência de ferramentas de programação por IA e testes visuais do mantenedor.
+- **Midnight Club L.A. Recompiled** — repositório atual: https://github.com/shad0w77-code/MC_LA_Recompiled. Tradução PT-BR (incluindo correção dos glifos `Õ`/`õ`), integração/validação das melhorias FSR e Frame Generation, suporte de proporção automática/ultrawide e instalador/configurador com atualizador automático. Desenvolvimento com assistência de ferramentas de programação por IA e testes visuais do mantenedor.
 
 Essas melhorias não representam autoria da recompilação original nem dos algoritmos AMD.
 
-## Outros componentes
+## Outros componentes e repositórios de referência
 
-- **mzzvxm / LARecomp** — referência dos pontos de integração e layouts da câmera de desenvolvimento, iluminação e clima, conferidos com o executável desta cópia do jogo: https://github.com/mzzvxm/LARecomp. A implementação local dos controles está em `src/world_controls.cpp`.
-
-- **AMD / GPUOpen** — FidelityFX Super Resolution, Frame Generation e seus provedores. Código aberto e binários mantêm as licenças oficiais correspondentes.
-- **Dyotson / ForzaHorizon1-ReImagined** e **RecompiledHaloReach** — contribuições e abordagens incorporadas pela base, com os avisos MIT preservados.
+- **mzzvxm / LARecomp** — referência dos pontos de integração e ideias de câmera livre, iluminação/clima, relógio real, fibra de carbono, unidades em km/h, rádio MP3 nas estações do jogo, countdown e checkpoint sweep, conferidos com o executável desta cópia do jogo: https://github.com/mzzvxm/LARecomp.
+- **AMD / GPUOpen FidelityFX SDK** — FidelityFX Super Resolution e Frame Generation: https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK e fork ReXGlue https://github.com/rexglue/FidelityFX-SDK. Código aberto e binários mantêm as licenças oficiais correspondentes.
+- **Dyotson / ForzaHorizon1-ReImagined** — otimizações Vulkan portadas pela base e wrapper de conquistas (MIT): https://github.com/Dyotson/ForzaHorizon1-ReImagined.
+- **Dyotson / RecompiledHaloReach** — wrapper de toast de conquistas (MIT): https://github.com/Dyotson/RecompiledHaloReach.
+- **Xenia / Xenia Canary** — base de emulação e shaders de resolve/textura (BSD-3-Clause): https://github.com/xenia-project/xenia e https://github.com/xenia-canary/xenia-canary.
+- **madler / zlib (contrib/puff)** — design do descompressor deflate usado em `src/shader_prepare.cpp`: https://github.com/madler/zlib/tree/develop/contrib/puff.
 - Demais bibliotecas/autores: [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) e licenças dos respectivos projetos.
 - **Rockstar Games / Rockstar San Diego** e demais titulares — jogo original, marcas, personagens e conteúdo. Projeto comunitário, sem afiliação ou endosso desses titulares.
 
