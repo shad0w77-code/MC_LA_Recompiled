@@ -1,4 +1,4 @@
-# Compilar o código correspondente à v1.0.2
+# Compilar o código correspondente à v1.0.0
 
 Estas instruções são para desenvolvedores. Jogadores devem usar o ZIP da release e sua própria ISO.
 
@@ -6,7 +6,7 @@ Estas instruções são para desenvolvedores. Jogadores devem usar o ZIP da rele
 
 - A base do projeto é `eaf3ad4b8701de537ea55411f7b413ad98bf73f1` do fork creditado.
 - ReXGlue: `f5337cdc947ff6d4c4196737e2c807a48f2a1fc2`.
-- `patches/rexglue-release.patch` reúne as modificações do SDK usadas nesta distribuição. Ele substitui a aplicação sequencial dos antigos patches da base.
+- `patches/rexglue-release.patch` consolida todas as modificações do SDK usadas nesta distribuição (incluindo integração do upscaler/FG Vulkan do SDK AMD 2.4, correções locais de teclado/mouse, 1080p nativo, HUD de métricas, baixa latência Anti-Lag 2/Reflex e correções D3D12/Vulkan). A revisão dos headers, do loader e dos provedores AMD é fixada no manifesto `scripts/amd-fsr-manifest.json`. A validação completa de teclado/mouse durante uma corrida continua pendente.
 - Alterações locais de FFmpeg acompanham um patch separado; revisões de todos os submódulos estão em `patches/dependencies.json`.
 - Provedores AMD oficiais: revisão e hashes fixados em `scripts/amd-fsr-manifest.json`. Não são algoritmos de autoria deste fork.
 
@@ -31,7 +31,7 @@ A ISO, o código gerado a partir dela, os recursos traduzidos resultantes, saves
 Baixe do site oficial do Python o pacote **Windows embeddable x64 Python 3.12** e extraia-o em uma pasta de ferramentas. Os avisos/licenças desse pacote devem acompanhar a distribuição. Os arquivos VC Runtime redistribuídos exigem também os respectivos avisos e condições Microsoft.
 
 ```powershell
-python installer/package.py --runtime out/build/win-amd64-release --python C:\tools\python-embed-312 --version 1.0.2
+python installer/package.py --runtime out/build/win-amd64-release --python C:\tools\python-embed-312 --version 1.0.0
 powershell -NoProfile -File installer/source/build.ps1
 ```
 

@@ -8,11 +8,14 @@
 // Ported from LARecomp's src/mc_engine/pause_menu.cpp with its author's
 // permission; the reverse engineering of the menu system is theirs. See
 // config/settings_menu.toml for what each hook address is. Left out: their
-// carbon-fibre, cutscene, language and native-renderer tabs.
+// cutscene, language and native-renderer tabs. The carbon fibre tab is ported (src/carbon_parts.cpp).
 
 #include "generated/default/mcla_init.h"
 
 #include "mcla_app.h"
+#include "graphics_profiles.h"
+#include "custom_radio.h"
+#include "carbon_parts.h"
 
 #include <algorithm>
 #include <atomic>
@@ -39,11 +42,14 @@
 #include <rex/ppc.h>
 #include <rex/runtime.h>
 #include <rex/system/function_dispatcher.h>
+#include <rex/ui/low_latency.h>
 #include <rex/ui/presenter.h>
 #include <rex/ui/window.h>
 #include <rex/ui/windowed_app_context.h>
 
 REXCVAR_DEFINE_BOOL(mcla_motion_blur, true, "MCLA", "Motion blur");
+REXCVAR_DEFINE_STRING(mcla_graphics_profile, "custom", "MCLA", "Graphics quality profile")
+    .allowed({"custom", "performance", "balanced", "native"});
 REXCVAR_DEFINE_BOOL(mcla_depth_of_field, true, "MCLA", "Depth of field blur");
 REXCVAR_DEFINE_BOOL(mcla_settings_menu, true, "MCLA",
                     "Add the settings submenus to the pause menu");
@@ -367,16 +373,46 @@ void MenuStackPop() {
 
 // --- Options -----------------------------------------------------------------
 
+// The carbon fibre rows are not options: each one is a bit of the car's own mask (src/carbon_parts.cpp).
+struct CarbonOption {
+  const char* name;
+  CarbonGroup group;
+};
+constexpr CarbonOption kCarbonOptions[] = {
+    {"carbon_hood", kCarbonHood},       {"carbon_trunk", kCarbonTrunk},
+    {"carbon_doors", kCarbonDoors},     {"carbon_roof", kCarbonRoof},
+    {"carbon_bumpers", kCarbonBumpers}, {"carbon_body", kCarbonBody},
+    {"carbon_spoiler", kCarbonSpoiler}, {"carbon_extras", kCarbonExtras},
+};
+
+const CarbonOption* FindCarbonOption(const char* name) {
+  for (const CarbonOption& option : kCarbonOptions) {
+    if (!std::strcmp(option.name, name)) {
+      return &option;
+    }
+  }
+  return nullptr;
+}
+
 std::string OptionGet(const char* name) {
+  if (const CarbonOption* carbon = FindCarbonOption(name)) {
+    return CarbonHasGroup(carbon->group) ? "true" : "false";
+  }
   return rex::cvar::GetFlagByName(name);
 }
 
 void OptionSet(const char* name, const char* value) {
   REXLOG_INFO("settings menu: {} = {}", name, value);
+  if (const CarbonOption* carbon = FindCarbonOption(name)) {
+    if (CarbonHasGroup(carbon->group) != (std::strcmp(value, "true") == 0)) {
+      CarbonToggleGroup(carbon->group);
+    }
+    return;
+  }
   rex::cvar::SetFlagByName(name, value);
 }
 
-enum class ItemKind { kToggle, kStringChoice, kNumberChoice, kNumberRange };
+enum class ItemKind { kToggle, kStringChoice, kNumberChoice, kNumberRange, kAction };
 
 struct ItemDef {
   const char* key;    // menu state name and string-table key; must be unique
@@ -412,7 +448,7 @@ struct ItemDef {
 constexpr double kFpsTargets[] = {30.0, 60.0};
 #else
 // The launcher's list: 40 to 50 are for variable-refresh displays.
-constexpr double kFpsTargets[] = {30.0, 40.0, 45.0, 50.0, 60.0, 120.0, 0.0};
+constexpr double kFpsTargets[] = {30.0, 40.0, 45.0, 50.0, 60.0, 90.0, 120.0, 144.0, 0.0};
 #endif
 constexpr int kFpsTargetCount = int(sizeof(kFpsTargets) / sizeof(kFpsTargets[0]));
 // How often the HUD advances (src/frame_timing.cpp): 0 is every frame.
@@ -427,8 +463,8 @@ constexpr int kHudRateCount = int(sizeof(kHudRates) / sizeof(kHudRates[0]));
 // and translated shaders are made for one scale when the GPU emulation starts.
 constexpr const char* kAspectValues[] = {"auto", "16:9", "43:18"};
 constexpr const char* kAspectLabels[] = {"AUTOMATIC", "16:9", "21:9"};
-constexpr const char* kScaleValues[] = {"1", "2", "3"};
-constexpr const char* kScaleLabels[] = {"NATIVE (720P)", "2X (1440P)", "3X (2160P)"};
+constexpr const char* kScaleValues[] = {"1", "1080p", "2", "3"};
+constexpr const char* kScaleLabels[] = {"720p", "1080p", "1440p", "2160p"};
 #endif
 #if REX_PLATFORM_WIN32
 // mcla_gpu_backend (src/mcla_app.cpp): chosen before the window opens.
@@ -437,6 +473,9 @@ constexpr const char* kBackendLabels[] = {"AUTO", "D3D12", "VULKAN"};
 #endif
 constexpr const char* kPromptValues[] = {"auto", "xbox", "playstation"};
 constexpr const char* kPromptLabels[] = {"AUTO", "XBOX", "PLAYSTATION"};
+#if !REX_PLATFORM_PS5
+constexpr double kMouseSensitivityValues[] = {0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0};
+#endif
 constexpr const char* kIntroValues[] = {"normal", "fast", "skip"};
 constexpr const char* kIntroLabels[] = {"NORMAL", "FAST", "SKIP (NO LOGO)"};
 // mcla_display_gamma (src/display_gamma.cpp): the console's ramp for an HDTV,
@@ -456,8 +495,16 @@ constexpr double kHdrHighlights[] = {1.0, 1.5, 2.0, 3.0};
 constexpr const char* kHdrHighlightLabels[] = {"NORMAL", "BRIGHT", "BRIGHTER", "BRIGHTEST"};
 #endif
 
-constexpr const char* kVinylValues[] = {"none", "fast"};
-constexpr const char* kVinylLabels[] = {"OFF (FASTER)", "ON"};
+constexpr const char* kVinylValues[] = {"none", "fast", "some", "full"};
+constexpr const char* kVinylLabels[] = {"OFF (FASTER)", "ON", "ON (CACHE MISS)", "ON (SYNC)"};
+// ReXGlue's texture cache supports this override on both D3D12 and Vulkan.
+// -1 retains the game's sampler settings; the SDK default is 3 (4x).
+// The override is read while generating sampler parameters, so newly used
+// sampler combinations can pick up a change without a restart.
+#if !REX_PLATFORM_PS5
+constexpr double kAnisotropyLevels[] = {-1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0};
+constexpr const char* kAnisotropyLabels[] = {"GAME", "OFF", "1X", "2X", "4X", "8X", "16X"};
+#endif
 
 const ItemDef kDisplayItems[] = {
     {"PM_MxFps", ItemKind::kNumberChoice, "mcla_fps", "FPS TARGET", nullptr, nullptr, kFpsTargets,
@@ -469,18 +516,14 @@ const ItemDef kDisplayItems[] = {
     // the PS5 host turns the emulated vsync off at every start.
     {"PM_MxVsync", ItemKind::kToggle, "vsync", "VSYNC"},
     {"PM_MxFullscreen", ItemKind::kToggle, "fullscreen", "FULLSCREEN"},
-    {"PM_MxResolution", ItemKind::kStringChoice, "resolution_scale", "RESOLUTION", kScaleValues,
-     kScaleLabels, nullptr, 3},
     {"PM_MxAspect", ItemKind::kStringChoice, "mcla_aspect_ratio", "ASPECT RATIO",
      kAspectValues, kAspectLabels, nullptr, 3},
-#endif
-#if REX_PLATFORM_WIN32
-    {"PM_MxBackend", ItemKind::kStringChoice, "mcla_gpu_backend", "GRAPHICS API", kBackendValues,
-     kBackendLabels, nullptr, 3},
 #endif
     {"PM_MxGamma", ItemKind::kStringChoice, "mcla_display_gamma", "DISPLAY GAMMA", kGammaValues,
      kGammaLabels, nullptr, 2},
 #if !REX_PLATFORM_PS5
+};
+const ItemDef kHdrItems[] = {
     {"PM_MxHdr", ItemKind::kStringChoice, "hdr", "HDR", kHdrValues, kHdrLabels, nullptr, 3},
     {.key = "PM_MxHdrPeak",
      .kind = ItemKind::kNumberRange,
@@ -506,20 +549,12 @@ const ItemDef kDisplayItems[] = {
     {"PM_MxHdrHighlights", ItemKind::kNumberChoice, "mcla_hdr_highlights", "HIGHLIGHTS", nullptr,
      kHdrHighlightLabels, kHdrHighlights, 4},
 #endif
-    {"PM_MxMotionBlur", ItemKind::kToggle, "mcla_motion_blur", "MOTION BLUR"},
-    {"PM_MxDof", ItemKind::kToggle, "mcla_depth_of_field", "DEPTH OF FIELD"},
-    // The vinyls on a car outside the garage are drawn to a texture the CPU reads
-    // back (readback_resolve, src/mcla_app.cpp); without the readback they don't
-    // show, but the frame rate is higher. Read at every resolve, so it changes
-    // during play (cars already built keep their vinyls until they are rebuilt).
-    {"PM_MxVinyls", ItemKind::kStringChoice, "readback_resolve", "CAR VINYLS", kVinylValues,
-     kVinylLabels, nullptr, 2},
 };
 
 // Detail the game can do without when the frame rate matters more; all as
 // shipped by default (src/perf_options.cpp). Options the game reads once, when
 // it starts, are kRequiresRestart, and their rows say "(NEXT START)" (RowLabel).
-constexpr double kDetailScales[] = {0.5, 0.75, 1.0};
+constexpr double kDetailScales[] = {0.25, 0.5, 0.75, 1.0};
 // mcla_anti_aliasing (src/perf_options.cpp): none, the game's 2x MSAA, or AMD
 // FSR 3.1 at native resolution (the SDK's temporal_aa, rexglue-temporal-aa.patch),
 // with its sharpening (temporal_aa_sharpness). All change during play; FSR
@@ -538,53 +573,172 @@ constexpr int kAntiAliasingCount = int(sizeof(kAntiAliasingValues) / sizeof(kAnt
 #if !REX_PLATFORM_PS5
 constexpr const char* kFrameGenValues[] = {"off", "fsr"};
 constexpr const char* kFrameGenLabels[] = {"OFF", "ON"};
+// low_latency (the SDK's): NVIDIA Reflex or AMD Anti-Lag 2, named by the row (RowLabel). AUTO is
+// the SDK's default (on for Reflex, off for Anti-Lag 2, and on with frame generation).
+constexpr const char* kLowLatencyValues[] = {"auto", "off", "on"};
+constexpr const char* kLowLatencyLabels[] = {"AUTO", "OFF", "ON"};
 constexpr const char* kFsrModeValues[] = {"native", "quality", "balanced", "performance"};
 constexpr const char* kFsrModeLabels[] = {"NATIVE AA", "QUALITY", "BALANCED", "PERFORMANCE"};
 #endif
 constexpr double kSharpness[] = {0.0, 0.2, 0.4, 0.6, 0.8, 1.0};
-constexpr double kDensityScales[] = {0.0, 0.5, 1.0};
+constexpr const char* kProfileValues[] = {"custom", "performance", "balanced", "native"};
+constexpr const char* kProfileLabels[] = {"CUSTOM", "PERFORMANCE", "BALANCED", "NATIVE AA"};
+constexpr double kDensityScales[] = {0.0, 0.25, 0.5, 0.75, 1.0};
 constexpr double kTrafficDistances[] = {250.0, 325.0, 400.0};
 
+constexpr const char* kHudStyles[] = {"full","simple"};
+constexpr const char* kHudStyleLabels[] = {"COMPLETO","SIMPLES"};
 const ItemDef kPerformanceItems[] = {
-    {"PM_MxSingleTile", ItemKind::kToggle, "mcla_single_tile", "SINGLE TILE RENDERING"},
-    {"PM_MxFenceYield", ItemKind::kToggle, "mcla_fence_yield", "GPU WAIT YIELD"},
-    {"PM_MxShadows", ItemKind::kToggle, "mcla_shadows", "SHADOWS"},
-    {"PM_MxFoliageShadows", ItemKind::kToggle, "mcla_foliage_shadows", "FOLIAGE SHADOWS"},
+    {"PM_MxFpsHud", ItemKind::kToggle, "mcla_fps_hud", "CONTADOR DE FPS"},
+    {"PM_MxHudStyle", ItemKind::kStringChoice, "mcla_hud_style", "MODO DO CONTADOR", kHudStyles, kHudStyleLabels, nullptr, 2},
     {"PM_MxCityLod", ItemKind::kNumberChoice, "mcla_city_lod", "CITY DETAIL DISTANCE", nullptr,
-     nullptr, kDetailScales, 3, "%.2f"},
+     nullptr, kDetailScales, 4, "%.2f"},
     {"PM_MxTrafficLod", ItemKind::kNumberChoice, "mcla_traffic_lod", "TRAFFIC DETAIL DISTANCE",
-     nullptr, nullptr, kDetailScales, 3, "%.2f"},
+     nullptr, nullptr, kDetailScales, 4, "%.2f"},
     {"PM_MxTrafficDist", ItemKind::kNumberChoice, "mcla_traffic_distance", "TRAFFIC DISTANCE",
      nullptr, nullptr, kTrafficDistances, 3, "%.0f"},
     {"PM_MxPeds", ItemKind::kNumberChoice, "mcla_pedestrians", "PEDESTRIANS", nullptr, nullptr,
-     kDensityScales, 3, "%.1f", "NONE"},
+     kDensityScales, 5, "%.2f", "NONE"},
     {"PM_MxParked", ItemKind::kNumberChoice, "mcla_parked_cars", "PARKED CARS", nullptr, nullptr,
-     kDensityScales, 3, "%.1f", "NONE"},
+     kDensityScales, 5, "%.2f", "NONE"},
+    {"PM_MxSingleTile", ItemKind::kToggle, "mcla_single_tile", "SINGLE TILE RENDERING"},
+    {"PM_MxFenceYield", ItemKind::kToggle, "mcla_fence_yield", "GPU WAIT YIELD"},
+};
+
+// Carbon fibre of the car being driven. Per car and kept in the save, like the paint.
+const ItemDef kCarbonItems[] = {
+    {"PM_MxCarbonHood", ItemKind::kToggle, "carbon_hood", "CARBON HOOD"},
+    {"PM_MxCarbonTrunk", ItemKind::kToggle, "carbon_trunk", "CARBON TRUNK"},
+    {"PM_MxCarbonDoors", ItemKind::kToggle, "carbon_doors", "CARBON DOORS"},
+    {"PM_MxCarbonRoof", ItemKind::kToggle, "carbon_roof", "CARBON ROOF HIDES TOP"},
+    {"PM_MxCarbonBumpers", ItemKind::kToggle, "carbon_bumpers", "CARBON BUMPERS"},
+    {"PM_MxCarbonBody", ItemKind::kToggle, "carbon_body", "CARBON FENDERS AND SKIRTS"},
+    {"PM_MxCarbonSpoiler", ItemKind::kToggle, "carbon_spoiler", "CARBON SPOILER"},
+    {"PM_MxCarbonExtras", ItemKind::kToggle, "carbon_extras", "CARBON GRILL AND EXTRAS"},
+};
+
+const ItemDef kShadowItems[] = {
+    {"PM_MxShadows", ItemKind::kToggle, "mcla_shadows", "SHADOWS"},
+    {"PM_MxFoliageShadows", ItemKind::kToggle, "mcla_foliage_shadows", "FOLIAGE SHADOWS"},
     {"PM_MxRaceShadows", ItemKind::kToggle, "mcla_race_shadows", "RACE SHADOWS"},
     {"PM_MxFastCarShadows", ItemKind::kToggle, "mcla_fast_car_shadows", "SIMPLE CAR SHADOWS"},
     {"PM_MxImpostors", ItemKind::kToggle, "mcla_foliage_impostors", "DISTANT TREES"},
-    {"PM_MxFsBlur", ItemKind::kToggle, "mcla_fullscreen_blur", "FULLSCREEN BLUR"},
+};
+
+// GPU/image quality controls have a dedicated tab, like the renderer section
+// of the other recompilation. Only settings backed by this runtime are shown;
+// native-Plume-only features cannot be offered with the ReXGlue renderer.
+const ItemDef kRenderItems[] = {
+    {"PM_MxProfile", ItemKind::kStringChoice, "mcla_graphics_profile", "QUALITY PROFILE",
+     kProfileValues, kProfileLabels, nullptr, 4},
+#if !REX_PLATFORM_PS5
+    {"PM_MxResolution", ItemKind::kStringChoice, "resolution_scale", "RESOLUTION", kScaleValues,
+     kScaleLabels, nullptr, 4},
+#endif
+#if REX_PLATFORM_WIN32
+    {"PM_MxBackend", ItemKind::kStringChoice, "mcla_gpu_backend", "GRAPHICS API", kBackendValues,
+     kBackendLabels, nullptr, 3},
+#endif
+#if !REX_PLATFORM_PS5
+    {"PM_MxAniso", ItemKind::kNumberChoice, "anisotropic_override", "ANISOTROPIC FILTER",
+     nullptr, kAnisotropyLabels, kAnisotropyLevels, 7},
+#endif
+    {"PM_MxVinyls", ItemKind::kStringChoice, "readback_resolve", "CAR VINYLS", kVinylValues,
+     kVinylLabels, nullptr, 4},
+};
+
+const ItemDef kFidelityItems[] = {
     {"PM_MxAntiAliasing", ItemKind::kStringChoice, "mcla_anti_aliasing", "ANTI ALIASING",
      kAntiAliasingValues, kAntiAliasingLabels, nullptr, kAntiAliasingCount},
 #if !REX_PLATFORM_PS5
     {"PM_MxFsrMode", ItemKind::kStringChoice, "temporal_aa_quality", "FSR MODE",
      kFsrModeValues, kFsrModeLabels, nullptr, 4},
-    {"PM_MxFrameGen", ItemKind::kStringChoice, "frame_generation", "FRAME GENERATION",
-     kFrameGenValues, kFrameGenLabels, nullptr, 2},
 #endif
     {"PM_MxFsrSharpness", ItemKind::kNumberChoice, "temporal_aa_sharpness", "FSR SHARPNESS",
      nullptr, nullptr, kSharpness, 6, "%.1f", "OFF"},
+#if !REX_PLATFORM_PS5
+    {"PM_MxFrameGen", ItemKind::kStringChoice, "frame_generation", "FRAME GENERATION",
+     kFrameGenValues, kFrameGenLabels, nullptr, 2},
+    {"PM_MxLowLatency", ItemKind::kStringChoice, "low_latency", "LOW LATENCY", kLowLatencyValues,
+     kLowLatencyLabels, nullptr, 3},
+    // The menus, pop-ups and HUD step 30 times a second and every frame is drawn between the last two steps
+    // (src/frame_timing.cpp, mcla_ui_interpolate); nothing is blended below 50 FPS.
+    {"PM_MxSmoothUi", ItemKind::kToggle, "mcla_ui_interpolate", "SMOOTH UI"},
+#endif
 };
 
+const ItemDef kEffectItems[] = {
+    {"PM_MxMotionBlur", ItemKind::kToggle, "mcla_motion_blur", "MOTION BLUR"},
+    {"PM_MxDof", ItemKind::kToggle, "mcla_depth_of_field", "DEPTH OF FIELD"},
+    {"PM_MxFsBlur", ItemKind::kToggle, "mcla_fullscreen_blur", "FULLSCREEN BLUR"},
+};
+
+constexpr double kStickDeadzones[] = {0.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0};
+
 const ItemDef kControlItems[] = {
+#if !REX_PLATFORM_PS5
+    {"PM_MxKeyboard", ItemKind::kToggle, "mnk_mode", "KEYBOARD CONTROLS"},
+    {"PM_MxMouseCamera", ItemKind::kToggle, "mnk_mouse", "MOUSE CAMERA"},
+    {"PM_MxMouseSensitivity", ItemKind::kNumberChoice, "mnk_sensitivity", "MOUSE SENSITIVITY",
+     nullptr, nullptr, kMouseSensitivityValues, 7, "%.2f"},
+#endif
     {"PM_MxPrompts", ItemKind::kStringChoice, "mcla_button_prompts", "BUTTON PROMPTS",
      kPromptValues, kPromptLabels, nullptr, 3},
+    // The game's rumble to the controllers, or none of it (src/vibration.cpp).
+    {"PM_MxVibration", ItemKind::kToggle, "mcla_vibration", "VIBRATION"},
+    // For a stick that rests off centre (src/stick_deadzone.cpp).
+    {"PM_MxDeadzoneL", ItemKind::kNumberChoice, "mcla_left_stick_deadzone", "LEFT STICK DEAD ZONE",
+     nullptr, nullptr, kStickDeadzones, 7, "%.0f%%", "OFF"},
+    {"PM_MxDeadzoneR", ItemKind::kNumberChoice, "mcla_right_stick_deadzone", "RIGHT STICK DEAD ZONE",
+     nullptr, nullptr, kStickDeadzones, 7, "%.0f%%", "OFF"},
     {"PM_MxIntro", ItemKind::kStringChoice, "mcla_intro", "INTRO", kIntroValues, kIntroLabels,
      nullptr, 3},
 #if !REX_PLATFORM_PS5
     {"PM_MxHideCursor", ItemKind::kToggle, "mcla_hide_cursor", "HIDE MOUSE POINTER"},
+#if REX_PLATFORM_WIN32
+    {"PM_MxScreenshot", ItemKind::kToggle, "mcla_screenshot_hotkey", "SCREENSHOT F12"},
+#endif
 #endif
 };
+
+constexpr double kWorldHours[] = {-1,0,3,6,9,12,15,18,21};
+constexpr const char* kWorldHourLabels[] = {"AUTOMATIC","00:00","03:00","06:00","09:00","12:00","15:00","18:00","21:00"};
+constexpr const char* kWeatherValues[] = {"auto","clear","cloudy","storm","fog"};
+constexpr const char* kWeatherLabels[] = {"AUTOMATIC","CLEAR SKY","CLOUDY","STORM","FOG"};
+constexpr double kCameraSpeeds[] = {5,10,20,40,80};
+constexpr double kCameraSensitivity[] = {0.5,1,1.5,2,3};
+constexpr const char* kSpeedUnitValues[] = {"mph","kmh"};
+constexpr const char* kSpeedUnitLabels[] = {"MPH","KMH"};
+constexpr double kDaySpeeds[] = {0,0.5,1,2,3,5,10};
+const ItemDef kWorldItems[] = {
+#if REX_PLATFORM_WIN32
+    {"PM_MxFreeCamera",ItemKind::kToggle,"mcla_free_camera","FREE CAMERA F8"},
+    {"PM_MxFreeCameraSpeed",ItemKind::kNumberChoice,"mcla_free_camera_speed","CAMERA SPEED",nullptr,nullptr,kCameraSpeeds,5,"%.0f"},
+    {"PM_MxFreeCameraLook",ItemKind::kNumberChoice,"mcla_free_camera_sensitivity","CAMERA LOOK SPEED",nullptr,nullptr,kCameraSensitivity,5,"%.1f"},
+#endif
+    {"PM_MxWorldHour",ItemKind::kNumberChoice,"mcla_time_hour","WORLD HOUR",nullptr,kWorldHourLabels,kWorldHours,9},
+    {"PM_MxSpeedUnits",ItemKind::kStringChoice,"mcla_speed_units","SPEED UNITS",kSpeedUnitValues,kSpeedUnitLabels,nullptr,2},
+    {"PM_MxWorldHold",ItemKind::kToggle,"mcla_time_hold","HOLD SELECTED HOUR"},
+    {"PM_MxWorldReal",ItemKind::kToggle,"mcla_time_realtime","REAL CLOCK"},
+    {"PM_MxWorldSpeed",ItemKind::kNumberChoice,"mcla_time_speed","DAY SPEED",nullptr,nullptr,kDaySpeeds,7,"%gX","STOPPED"},
+    {"PM_MxWorldWeather",ItemKind::kStringChoice,"mcla_weather","WEATHER",kWeatherValues,kWeatherLabels,nullptr,5},
+};
+
+#if REX_PLATFORM_WIN32
+constexpr double kRadioVolumes[] = {0,10,20,30,40,50,60,70,80,90,100};
+const ItemDef kRadioItems[] = {
+    {"PM_MxRadioInGame",ItemKind::kToggle,"mcla_radio_in_game","MP3S IN THE GAME RADIO"},
+    {"PM_MxRadioAnnounce",ItemKind::kToggle,"mcla_radio_announce","SHOW SONG NAME"},
+    {"PM_MxRadioMp3",ItemKind::kToggle,"mcla_radio_mp3","LOCAL MP3 RADIO"},
+    {"PM_MxRadioPause",ItemKind::kToggle,"mcla_radio_paused","PAUSE MUSIC"},
+    {"PM_MxRadioVolume",ItemKind::kNumberChoice,"mcla_radio_volume","MUSIC VOLUME",nullptr,nullptr,kRadioVolumes,11,"%.0f%%"},
+    {"PM_MxRadioPrev",ItemKind::kAction,"radio_previous","PREVIOUS TRACK"},
+    {"PM_MxRadioNext",ItemKind::kAction,"radio_next","NEXT TRACK"},
+    {"PM_MxRadioInfo",ItemKind::kAction,"radio_info","SHOW TRACK"},
+    {"PM_MxRadioReload",ItemKind::kAction,"radio_reload","RELOAD FOLDER"},
+    {"PM_MxRadioFocus",ItemKind::kToggle,"mcla_radio_pause_unfocused","PAUSE ON ALT TAB"},
+};
+#endif
 
 struct MenuDef {
   const char* button_key;  // button state name and its string-table key
@@ -595,10 +749,28 @@ struct MenuDef {
 };
 
 const MenuDef kMenus[] = {
+    {"PM_MxTabWorld", "WORLD AND CAMERA", "MxWorldMenu", kWorldItems,
+     int(sizeof(kWorldItems) / sizeof(kWorldItems[0]))},
     {"PM_MxTabDisplay", "DISPLAY", "MxDisplayMenu", kDisplayItems,
      int(sizeof(kDisplayItems) / sizeof(kDisplayItems[0]))},
+#if !REX_PLATFORM_PS5
+    {"PM_MxTabHdr", "HDR", "MxHdrMenu", kHdrItems, int(sizeof(kHdrItems)/sizeof(kHdrItems[0]))},
+#endif
+    {"PM_MxTabRender", "RENDER", "MxRenderMenu", kRenderItems,
+     int(sizeof(kRenderItems) / sizeof(kRenderItems[0]))},
+    {"PM_MxTabFidelity", "FSR AND FRAMES", "MxFidelityMenu", kFidelityItems,
+     int(sizeof(kFidelityItems) / sizeof(kFidelityItems[0]))},
+    {"PM_MxTabEffects", "EFFECTS", "MxEffectsMenu", kEffectItems,
+     int(sizeof(kEffectItems) / sizeof(kEffectItems[0]))},
     {"PM_MxTabPerf", "PERFORMANCE", "MxPerfMenu", kPerformanceItems,
      int(sizeof(kPerformanceItems) / sizeof(kPerformanceItems[0]))},
+    {"PM_MxTabShadows", "SHADOWS", "MxShadowsMenu", kShadowItems,
+     int(sizeof(kShadowItems) / sizeof(kShadowItems[0]))},
+#if REX_PLATFORM_WIN32
+    {"PM_MxTabRadio", "MP3 RADIO", "MxRadioMenu", kRadioItems,int(sizeof(kRadioItems)/sizeof(kRadioItems[0]))},
+#endif
+    {"PM_MxTabCarbon", "CARBON FIBER", "MxCarbonMenu", kCarbonItems,
+     int(sizeof(kCarbonItems) / sizeof(kCarbonItems[0]))},
     {"PM_MxTabControls", "CONTROLS", "MxControlsMenu", kControlItems,
      int(sizeof(kControlItems) / sizeof(kControlItems[0]))},
 };
@@ -607,8 +779,18 @@ constexpr int kMaxRows = 17;
 
 // An option the game reads only when it starts (kRequiresRestart).
 bool RestartOnly(const char* option) {
+  if (!std::strcmp(option, "resolution_scale") && RestartOnly("mcla_render_resolution")) return true;
   const rex::cvar::FlagEntry* info = rex::cvar::GetFlagInfo(option);
   return info && info->lifecycle == rex::cvar::Lifecycle::kRequiresRestart;
+}
+
+// Resolution is a virtual choice backed by two cvars; track both for restart labels.
+std::string RowOptionValue(const char* option) {
+  std::string value = OptionGet(option);
+  if (!std::strcmp(option, "resolution_scale")) {
+    value += ":" + OptionGet("mcla_render_resolution");
+  }
+  return value;
 }
 
 // A restart-only row says "(NEXT START)", and "(RESTART NEEDED)" once its
@@ -616,13 +798,24 @@ bool RestartOnly(const char* option) {
 // says "(UNAVAILABLE)" where the GPU emulates the console's EDRAM, too small
 // for it (src/render_perf.cpp), and doesn't change then (ItemChangeable).
 std::string RowLabel(const ItemDef& item, bool pending) {
-  if (!std::strcmp(item.option, "frame_generation")) {
-    const auto version = rex::cvar::GetFlagByName("frame_generation_provider");
-    return "FRAME GENERATION " + (version.empty() ? std::string("4.0.2") : version);
-  }
   std::string label = item.label;
+  if (!std::strcmp(item.option, "mcla_graphics_profile")) label += " (R)";
+  if ((!std::strcmp(item.option, "temporal_aa_sharpness") ||
+       !std::strcmp(item.option, "temporal_aa_quality")) &&
+      OptionGet("mcla_anti_aliasing") != "fsr") {
+    label += " (FSR OFF)";
+  }
+  if (!std::strcmp(item.option, "frame_generation")) {
+    label = "FRAME GENERATION";
+  }
+  if (!std::strcmp(item.option, "low_latency")) {
+    // The vendor's feature by its name: NVIDIA REFLEX, AMD ANTI LAG 2.
+    const auto status = rex::ui::LowLatency::GetStatus();
+    label = status.name;
+    if (status.state != rex::ui::LowLatency::State::kAvailable) label += " (UNAVAILABLE)";
+  }
   if (RestartOnly(item.option)) {
-    label += pending ? " (RESTART NEEDED)" : " (NEXT START)";
+    label += pending ? " (R!)" : " (R)";
   }
   if (std::strcmp(item.option, "mcla_single_tile") == 0 && !MclaSingleTileAvailable()) {
     label += " (UNAVAILABLE)";
@@ -639,10 +832,11 @@ std::string RowLabel(const ItemDef& item, bool pending) {
 #endif
   if (!std::strcmp(item.option, "frame_generation") &&
       rex::cvar::GetFlagByName("frame_generation_menu_available") != "true") {
-    label += " (DX12 ONLY)";
+    label += " (UNAVAILABLE)";
   }
   if (!std::strcmp(item.option, "temporal_aa_quality") &&
-      rex::cvar::GetFlagByName("temporal_aa_upscale_available") != "true") {
+      (OptionGet("mcla_render_resolution") == "1080p" ||
+       rex::cvar::GetFlagByName("temporal_aa_upscale_available") != "true")) {
     label += " (NATIVE ONLY)";
   }
   return label;
@@ -652,18 +846,33 @@ std::string RowLabel(const ItemDef& item, bool pending) {
 // session with the console's EDRAM (edram_tiles = 2048, or a GPU that can't
 // bind a larger one) doesn't save a value for the next one.
 bool ItemChangeable(const ItemDef& item) {
+  if (FindCarbonOption(item.option)) {
+    return CarbonHaveCar();  // the car must have been drawn once
+  }
+  if (!std::strcmp(item.option, "temporal_aa_sharpness")) {
+    return OptionGet("mcla_anti_aliasing") == "fsr" && MclaFsrAvailable();
+  }
   if (!std::strcmp(item.option, "frame_generation")) {
     return rex::cvar::GetFlagByName("frame_generation_menu_available") == "true";
   }
+  if (!std::strcmp(item.option, "low_latency")) {
+    return rex::ui::LowLatency::GetStatus().state == rex::ui::LowLatency::State::kAvailable;
+  }
   if (!std::strcmp(item.option, "temporal_aa_quality")) {
-    return rex::cvar::GetFlagByName("temporal_aa_upscale_available") == "true";
+    return OptionGet("mcla_render_resolution") != "1080p" &&
+           OptionGet("mcla_anti_aliasing") == "fsr" && MclaFsrAvailable() &&
+           rex::cvar::GetFlagByName("temporal_aa_upscale_available") == "true";
   }
   return std::strcmp(item.option, "mcla_single_tile") != 0 || MclaSingleTileAvailable();
 }
 
 // Whether the row's label can change while the menus are open.
 bool LabelChanges(const ItemDef& item) {
-  return RestartOnly(item.option) || std::strcmp(item.option, "hdr") == 0;
+  return RestartOnly(item.option) || std::strcmp(item.option, "hdr") == 0 ||
+         std::strcmp(item.option, "temporal_aa_sharpness") == 0 ||
+         std::strcmp(item.option, "temporal_aa_quality") == 0 ||
+         std::strcmp(item.option, "frame_generation") == 0 ||
+         std::strcmp(item.option, "low_latency") == 0;
 }
 
 // FSR (the last anti-aliasing choice) is offered only where it can run, now or
@@ -678,7 +887,7 @@ int ItemValueCount(const ItemDef& item) {
   if (IsAntiAliasingWithoutFsr(item)) {
     return item.value_count - 1;
   }
-  return item.kind == ItemKind::kToggle ? 2 : item.value_count;
+  return item.kind == ItemKind::kToggle || item.kind == ItemKind::kAction ? 2 : item.value_count;
 }
 
 // --- kNumberRange --------------------------------------------------------------
@@ -772,10 +981,12 @@ std::string ItemValueLabel(const ItemDef& item, int index) {
   }
   // Unsupported sessions keep native AA regardless of the saved preset.
   if (!std::strcmp(item.option, "temporal_aa_quality") &&
-      rex::cvar::GetFlagByName("temporal_aa_upscale_available") != "true") {
+      (OptionGet("mcla_render_resolution") == "1080p" ||
+       rex::cvar::GetFlagByName("temporal_aa_upscale_available") != "true")) {
     return "NATIVE AA";
   }
   switch (item.kind) {
+    case ItemKind::kAction: return "PRESS";
     case ItemKind::kToggle:
       return index ? "ON" : "OFF";
     case ItemKind::kStringChoice:
@@ -807,7 +1018,14 @@ std::string ItemValueLabel(const ItemDef& item, int index) {
 
 int ItemCurrentIndex(const ItemDef& item) {
   const std::string value = OptionGet(item.option);
+  if (!std::strcmp(item.option,"resolution_scale") &&
+      OptionGet("mcla_render_resolution")=="1080p") return 1;
+  if (!std::strcmp(item.option,"temporal_aa_quality") &&
+      OptionGet("mcla_render_resolution")=="1080p") return 0;
+  if (!std::strcmp(item.option,"resolution_scale") && value=="2" &&
+      OptionGet("temporal_aa_quality")=="1080p" && OptionGet("mcla_anti_aliasing")=="fsr") return 1;
   switch (item.kind) {
+    case ItemKind::kAction: return 0;
     case ItemKind::kToggle:
       return value == "true" ? 1 : 0;
     case ItemKind::kStringChoice:
@@ -847,6 +1065,9 @@ std::mutex g_changed_mutex;
 std::vector<std::string> g_changed_options;
 
 void NoteChanged(const char* option) {
+  if (FindCarbonOption(option)) return;  // kept in the car, not in mcla.toml
+  // Free camera is a session tool; never re-enable it automatically on boot.
+  if (!std::strcmp(option, "mcla_free_camera") || !std::strcmp(option, "mcla_radio_paused")) return;
   std::lock_guard lock(g_changed_mutex);
   for (const std::string& name : g_changed_options) {
     if (name == option) {
@@ -857,15 +1078,38 @@ void NoteChanged(const char* option) {
 }
 
 void ItemSetIndex(const ItemDef& item, int index) {
-  if (index < 0 || index >= ItemValueCount(item)) {
+  if (index < 0 || index >= ItemValueCount(item) || !ItemChangeable(item)) {
     return;
   }
   switch (item.kind) {
+    case ItemKind::kAction:
+      if (!std::strcmp(item.option,"radio_previous") || !std::strcmp(item.option,"radio_next")) {
+        OptionSet("mcla_radio_mp3","true");
+        OptionSet("mcla_radio_paused","false");
+        NoteChanged("mcla_radio_mp3");
+        g_settings_dirty.store(true,std::memory_order_relaxed);
+      }
+      MclaRadioCommand(!std::strcmp(item.option,"radio_previous")?1:
+          !std::strcmp(item.option,"radio_next")?2:!std::strcmp(item.option,"radio_reload")?3:4);
+      return;
     case ItemKind::kToggle:
       OptionSet(item.option, index ? "true" : "false");
       break;
     case ItemKind::kStringChoice:
-      OptionSet(item.option, item.values[index]);
+      if (!std::strcmp(item.option,"resolution_scale") && index==1) {
+        OptionSet("mcla_render_resolution","1080p"); NoteChanged("mcla_render_resolution");
+        OptionSet("resolution_scale","1");
+        OptionSet("mcla_anti_aliasing","fsr"); NoteChanged("mcla_anti_aliasing");
+        OptionSet("temporal_aa_quality","native"); NoteChanged("temporal_aa_quality");
+      } else {
+        if (!std::strcmp(item.option,"resolution_scale")) {
+          OptionSet("mcla_render_resolution","scaled"); NoteChanged("mcla_render_resolution");
+        }
+        if (!std::strcmp(item.option,"resolution_scale") && OptionGet("temporal_aa_quality")=="1080p") {
+          OptionSet("temporal_aa_quality","native"); NoteChanged("temporal_aa_quality");
+        }
+        OptionSet(item.option, item.values[index]);
+      }
       break;
     case ItemKind::kNumberChoice: {
       char buffer[32];
@@ -877,10 +1121,33 @@ void ItemSetIndex(const ItemDef& item, int index) {
       return;
   }
   NoteChanged(item.option);
+  if (!std::strcmp(item.option, "mcla_graphics_profile") && index > 0) {
+    OptionSet("mcla_render_resolution", "scaled");
+    NoteChanged("mcla_render_resolution");
+    for (const auto& value : kMclaProfileValues) {
+      if (!std::strcmp(value.profile, item.values[index])) {
+        OptionSet(value.key, value.value);
+        NoteChanged(value.key);
+      }
+    }
+  } else if (std::strcmp(item.option, "mcla_graphics_profile") != 0) {
+    for (const auto& value : kMclaProfileValues) {
+      if (!std::strcmp(value.key, item.option)) {
+        OptionSet("mcla_graphics_profile", "custom");
+        NoteChanged("mcla_graphics_profile");
+        break;
+      }
+    }
+  }
   g_settings_dirty.store(true, std::memory_order_relaxed);
 }
 
 }  // namespace
+
+void MclaNoteMenuSettingChanged(const char* option) {
+  NoteChanged(option);
+  g_settings_dirty.store(true, std::memory_order_relaxed);
+}
 
 // The PS5 started with FSR chosen, which gave its device FSR's features, and FSR
 // can't run after all (it failed, or isn't in the build): the setting becomes
@@ -1035,7 +1302,7 @@ bool BuildRows(int menu) {
     const ItemDef& item = def.items[i];
     // The row constructor resolves its label through the string table once,
     // so the text has to exist first.
-    rows.start_value[i] = OptionGet(item.option);
+    rows.start_value[i] = RowOptionValue(item.option);
     rows.label[i] = RowLabel(item, false);
     SetStringTableText(item.key, rows.label[i].c_str());
     uint32_t name = AllocGuestString(item.key);
@@ -1104,7 +1371,7 @@ void UpdateRowLabels(int menu) {
     if (!LabelChanges(item)) {
       continue;
     }
-    std::string label = RowLabel(item, OptionGet(item.option) != rows.start_value[i]);
+    std::string label = RowLabel(item, RowOptionValue(item.option) != rows.start_value[i]);
     if (label == rows.label[i] || !rows.row[i] || !rows.name[i]) {
       continue;
     }
@@ -1220,7 +1487,13 @@ void PollRows(int menu) {
       }
       const int index = ((rows.last_index[i] + direction) % count + count) % count;
       ItemSetIndex(item, index);
-      CentreRowWindow(rows, i, item, index);
+      // A profile changes other rows in this same menu. Refresh them together
+      // so the next render never presents stale resolution/AA values.
+      if (!std::strcmp(item.option, "mcla_graphics_profile")) {
+        SyncRowsFromOptions(menu);
+        return;
+      }
+      CentreRowWindow(rows, i, item, ItemCurrentIndex(item));
     }
   }
   // Every render: HDR's label follows the display.

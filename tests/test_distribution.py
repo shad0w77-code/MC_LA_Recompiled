@@ -79,7 +79,9 @@ class DistributionTests(unittest.TestCase):
             self.assertIsInstance(record['translation'], str)
         manifest = json.loads((ROOT / 'scripts/amd-fsr-manifest.json').read_text())
         self.assertEqual(len(manifest['revision']), 40)
-        self.assertEqual(sum(r['destination'] == 'runtime' for r in manifest['files']), 3)
+        self.assertEqual({Path(r['path']).name for r in manifest['files'] if r['destination'] == 'runtime'},
+                         {f'amd_fidelityfx_{name}.dll' for name in ('loader_dx12', 'upscaler_dx12',
+                          'framegeneration_dx12', 'loader_vk', 'upscaler_vk', 'framegeneration_vk')})
         for item in manifest['files']:
             self.assertEqual(len(item['sha256']), 64)
             self.assertNotIn('..', Path(item['path']).parts)

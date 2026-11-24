@@ -28,6 +28,11 @@ REXCVAR_DEFINE_STRING(mcla_aspect_ratio, "auto", "MCLA",
     .allowed({"auto", "16:9", "43:18"})
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
+REXCVAR_DEFINE_STRING(mcla_render_resolution, "scaled", "MCLA",
+    "Render mode: scaled uses the 720p guest with integer scaling; 1080p uses a 1920x1080 guest with Native AA. Restart required.")
+    .allowed({"scaled", "1080p"})
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
 REXCVAR_DEFINE_BOOL(mcla_hud_aspect, true, "MCLA",
     "Keep the HUD in a centered 16:9 safe area on an ultrawide display");
 
@@ -54,6 +59,9 @@ REXCVAR_DEFINE_BOOL(mcla_gps_icon_aspect, true, "MCLA",
 
 
 namespace {
+bool g_native_1080p = false;  // Selected before the GPU and guest start.
+uint32_t g_native_heap_guard = 0;
+uint32_t g_native_heap_guard_value = 0;
 bool g_wide = false;  // Set before the guest thread starts.
 double g_hud_correction = 1.0;  // (16/9) / the selected presentation aspect.
 thread_local bool g_ui_phase = false;
@@ -72,6 +80,13 @@ void WriteWord(uint8_t* base, uint32_t address, uint32_t value) {
 }
 float ReadFloat(const uint8_t* base, uint32_t address) {
   return std::bit_cast<float>(ReadWord(base, address));
+}
+void CheckNativeHeap(const uint8_t* base, uint32_t caller) {
+  if (g_native_heap_guard && ReadWord(base, g_native_heap_guard) != g_native_heap_guard_value) {
+    REXLOG_ERROR("1080p heap guard changed at boundary {:08X}: node={:08X} expected={:08X} actual={:08X}",
+                caller, g_native_heap_guard, g_native_heap_guard_value, ReadWord(base, g_native_heap_guard));
+    std::abort();
+  }
 }
 void WriteFloat(uint8_t* base, uint32_t address, float value) {
   WriteWord(base, address, std::bit_cast<uint32_t>(value));
@@ -335,6 +350,167 @@ DisplaySize DetectAspectDisplay(rex::ui::Window* window) {
 }
 }  // namespace
 
+// Must run before the GPU creates its render-target caches. Native AA keeps
+// both the scene input and FSR output at the same resolution.
+void MclaConfigureRenderResolution() {
+  if (rex::cvar::GetFlagByName("resolution_scale") == "2" &&
+      rex::cvar::GetFlagByName("temporal_aa_quality") == "1080p" &&
+      rex::cvar::GetFlagByName("mcla_anti_aliasing") == "fsr") {
+    rex::cvar::SetFlagByName("mcla_render_resolution", "1080p");
+    rex::cvar::SetFlagByName("resolution_scale", "1");
+    rex::cvar::SetFlagByName("temporal_aa_quality", "native");
+  }
+  g_native_1080p = REXCVAR_GET(mcla_render_resolution) == "1080p";
+  if (!g_native_1080p) return;
+  rex::cvar::SetFlagFromCommandLine("resolution_scale", "1");
+  rex::cvar::SetFlagFromCommandLine("draw_resolution_scale_x", "1");
+  rex::cvar::SetFlagFromCommandLine("draw_resolution_scale_y", "1");
+  rex::cvar::SetFlagFromCommandLine("temporal_aa_quality", "native");
+  rex::cvar::SetFlagFromCommandLine("mcla_anti_aliasing", "fsr");
+  REXLOG_INFO("render resolution: 1920x1080, scale 1, Native AA (no scene upscaling)");
+}
+
+// The renderer's width/height options use 1 as an automatic-size sentinel.
+// Set explicit dimensions before its normal initialization so the console's
+// automatic 1280x720 clamp does not reduce the requested render targets.
+extern "C" REX_FUNC(sub_8217AC30) {
+  if (g_native_1080p) {
+    WriteWord(base, 0x827D426C, 1920);
+    WriteWord(base, 0x827D4270, 1080);
+  }
+  __imp__sub_8217AC30(ctx, base);
+  if (g_native_1080p) {
+    REXLOG_INFO("1080p renderer: selected={}x{} effective={}x{}",
+                ReadWord(base, 0x827D426C), ReadWord(base, 0x827D4270),
+                ReadWord(base, 0x827D4274), ReadWord(base, 0x827D4278));
+  }
+}
+
+// The console's renderer reserves 0x9D8000 bytes for its HD resources.
+// Full-resolution 1080p textures exceed that arena; enlarge its backing
+// allocation at construction, rather than modifying its capacity afterward.
+extern "C" REX_FUNC(sub_821851C8) {
+  if (g_native_1080p && ctx.lr == 0x822E4988) {
+    ctx.r5.u64 = 32u * 1024u * 1024u;
+    REXLOG_INFO("1080p renderer: resource arena increased to {} bytes", ctx.r5.u32);
+  }
+  __imp__sub_821851C8(ctx, base);
+}
+
+// The main heap's budget is expressed in KiB. Its three callers use this
+// adjustment for both backing storage and page metadata. Reserve space for
+// the larger render targets within the console's 512 MiB physical address
+// space; never shrink an allocation after the allocator has sized its pages.
+extern "C" REX_FUNC(sub_82130EC0) {
+  __imp__sub_82130EC0(ctx, base);
+  if (g_native_1080p) ctx.r3.s64 -= 48 * 1024;
+}
+
+extern "C" REX_FUNC(sub_82183748) {
+  const uint32_t arena = ReadWord(base, 0x82839ED4);
+  const uint32_t caller = uint32_t(ctx.lr);
+  const uint32_t bytes = ctx.r3.u32;
+  CheckNativeHeap(base, caller);
+  if (g_native_1080p && arena >= 0x10000) {
+    const uint32_t segment = ReadWord(base, arena + 20);
+    const uint32_t offsets = ReadWord(base, arena + 12);
+    const uint32_t begin = ReadWord(base, offsets + segment * 4);
+    const uint32_t capacity = ReadWord(base, arena + 8);
+    const uint64_t alignment = ctx.r4.u32;
+    const uint64_t end = begin + ((uint64_t(bytes) + alignment - 1) & ~(alignment - 1));
+    if (end > capacity) {
+      REXLOG_ERROR("1080p arena OVERFLOW: arena={:08X} backing={:08X} caller={:08X} bytes={} alignment={} segment={} begin={} end={} capacity={}",
+                  arena, ReadWord(base, arena + 4), caller, bytes, alignment, segment, begin, end, capacity);
+      std::abort();
+    }
+  }
+  __imp__sub_82183748(ctx, base);
+  CheckNativeHeap(base, caller);
+  if (g_native_1080p && arena >= 0x10000) {
+    const uint32_t segment = ReadWord(base, arena + 20);
+    const uint32_t offsets = ReadWord(base, arena + 12);
+    const uint32_t used = ReadWord(base, offsets + segment * 4);
+    const uint32_t capacity = ReadWord(base, arena + 8);
+    if (used > capacity || bytes >= 1024 * 1024) {
+      REXLOG_INFO("1080p arena: caller={:08X} bytes={} segment={} used={} capacity={}",
+                  caller, bytes, segment, used, capacity);
+    }
+  }
+}
+
+extern "C" REX_FUNC(sub_82130B50) {
+  const uint32_t size = ctx.r3.u32;
+  const uint32_t caller = uint32_t(ctx.lr);
+  CheckNativeHeap(base, caller);
+  __imp__sub_82130B50(ctx, base);
+  CheckNativeHeap(base, caller);
+  if (g_native_1080p && size >= 1024 * 1024) {
+    REXLOG_INFO("1080p allocation: caller={:08X} bytes={} result={:08X}", caller, size, ctx.r3.u32);
+  }
+}
+
+extern "C" REX_FUNC(sub_821C2E60) {
+  const bool watched = g_native_1080p && ctx.r3.u32 == 0x82909628;
+  __imp__sub_821C2E60(ctx, base);
+  if (watched) {
+    g_native_heap_guard = ReadWord(base, 0x82909628 + 4);
+    g_native_heap_guard_value = ReadWord(base, g_native_heap_guard);
+    REXLOG_INFO("1080p heap guard initialized: node={:08X} value={:08X}",
+                g_native_heap_guard, g_native_heap_guard_value);
+  }
+}
+
+extern "C" REX_FUNC(sub_82305230) {
+  CheckNativeHeap(base, 0x82305230);
+  __imp__sub_82305230(ctx, base);
+  CheckNativeHeap(base, 0x82305230);
+}
+
+extern "C" REX_FUNC(sub_823D9890) {
+  if (g_native_heap_guard) {
+    const uint32_t address = ctx.r3.u32;
+    const uint32_t size = ctx.r5.u32;
+    const uint32_t physical = address >= 0xA0000000 ?
+        (address & 0x1FFFFFFF) + (address >= 0xE0000000 ? 0x1000 : 0) : UINT32_MAX;
+    const uint32_t guard = g_native_heap_guard & 0x1FFFFFFF;
+    if (physical != UINT32_MAX && physical <= guard && uint64_t(physical) + size > guard) {
+      REXLOG_ERROR("1080p memset touches heap guard: caller={:08X} destination={:08X} size={} value={}",
+                  uint32_t(ctx.lr), address, size, ctx.r4.u32);
+      std::abort();
+    }
+  }
+  __imp__sub_823D9890(ctx, base);
+}
+
+extern "C" REX_FUNC(sub_82410C50) {
+  CheckNativeHeap(base, 0x82410C50);
+  __imp__sub_82410C50(ctx, base);
+  CheckNativeHeap(base, 0x82410C51);
+}
+
+uint32_t MclaGuestFunctionForHostPc(uintptr_t host_pc);
+extern "C" REX_FUNC(sub_821BD618) {
+  if (g_native_1080p && ctx.r3.u32 >= 0x82000000 && ctx.r3.u32 < 0x829E0000) {
+    REXLOG_ERROR("1080p guest fatal: {} args={:08X},{:08X},{:08X},{:08X}",
+                reinterpret_cast<const char*>(base + ctx.r3.u32),
+                ctx.r4.u32, ctx.r5.u32, ctx.r6.u32, ctx.r7.u32);
+  }
+  __imp__sub_821BD618(ctx, base);
+}
+extern "C" REX_FUNC(sub_82131C58) {
+#ifdef _WIN32
+  if (g_native_1080p) {
+    void* frames[24]{};
+    const auto count = CaptureStackBackTrace(0, 24, frames, nullptr);
+    for (unsigned i = 0; i < count; ++i) {
+      REXLOG_ERROR("1080p load failure #{}: guest {:08X}", i,
+                  MclaGuestFunctionForHostPc(reinterpret_cast<uintptr_t>(frames[i])));
+    }
+  }
+#endif
+  __imp__sub_82131C58(ctx, base);
+}
+
 void MclaApplyAspectRatio(rex::ui::Window* window) {
   constexpr uint32_t address = 0x8201E7EC;
   auto* runtime = rex::Runtime::instance();
@@ -344,7 +520,7 @@ void MclaApplyAspectRatio(rex::ui::Window* window) {
   auto* data = memory->TranslateVirtual<uint8_t*>(address);
   if (!heap || !data) return;
   const uint32_t original = ReadWord(data, 0);
-  const std::string selection = REXCVAR_GET(mcla_aspect_ratio);
+  const std::string selection = g_native_1080p ? "16:9" : REXCVAR_GET(mcla_aspect_ratio);
   DisplaySize detected{};
   uint32_t guest_width = selection == "43:18" ? 1720 : 1280;
   constexpr uint32_t guest_height = 720;
@@ -384,8 +560,8 @@ void MclaApplyAspectRatio(rex::ui::Window* window) {
   g_hud_correction = 1280.0 / guest_width;
   // Do not replace the saved selection with the detected ratio. AUTO must
   // detect the current display again on every launch (including menu restart).
-  rex::cvar::SetFlagFromCommandLine("video_mode_width", std::to_string(guest_width));
-  rex::cvar::SetFlagFromCommandLine("video_mode_height", "720");
+  rex::cvar::SetFlagFromCommandLine("video_mode_width", std::to_string(g_native_1080p ? 1920 : guest_width));
+  rex::cvar::SetFlagFromCommandLine("video_mode_height", g_native_1080p ? "1080" : "720");
   rex::cvar::SetFlagFromCommandLine("present_letterbox", "true");
   REXLOG_INFO("aspect ratio: selection={} detected={}x{} source={} guest={}x{} ratio={:.6f} HUD={:.6f}",
               selection, detected.width, detected.height, detected.source,

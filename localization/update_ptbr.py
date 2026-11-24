@@ -19,6 +19,11 @@ import zlib
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_ptbr as bp  # noqa: E402
 
+# This title was translated before native_applied tracked every record.
+# Keep this legacy version eligible for migration. The title must be stored
+# uppercase in the archive to avoid the game's uppercase conversion of õ.
+LEGACY_TRANSLATIONS = {'3dc04311': 'RESULTADOS DAS MISSÕES'}
+
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
@@ -44,7 +49,9 @@ def update(game, sdk=None, log=print):
         expected, translated = changes[key]
         if current == digest(translated.encode('utf8')):
             return False
-        return current == expected or earlier.get(key) == current
+        legacy = LEGACY_TRANSLATIONS.get(key)
+        return (current == expected or earlier.get(key) == current or
+                (legacy is not None and current == digest(legacy.encode('utf8'))))
 
     api = bp.helpers()
     image = api['decrypted_image'](game / 'default.xex', sdk or bp.ROOT / 'third_party/rexglue-sdk')

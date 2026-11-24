@@ -4,17 +4,21 @@ import argparse,hashlib,io,json,re,zipfile
 parser=argparse.ArgumentParser()
 parser.add_argument('--runtime',type=Path,required=True)
 parser.add_argument('--python',dest='python_dir',type=Path,required=True,help='Official Windows x64 Python 3.12 embeddable package, extracted')
-parser.add_argument('--version',default='1.0.2',help='release the package installs; installations of an older one are offered the update')
+parser.add_argument('--version',default='1.0.0',help='release the package installs; installations of an older one are offered the update')
 args=parser.parse_args();here=Path(__file__).resolve().parent;root=here.parent
 files={}
 # Explicit allowlist: no configuration, save, log or arbitrary runtime-directory file.
-required=['mcla.exe','rexgpu-xenos.dll','rexruntime.dll','amd_fidelityfx_dx12.dll','amd_fidelityfx_vk.dll','amd_fidelityfx_loader_dx12.dll','amd_fidelityfx_upscaler_dx12.dll','amd_fidelityfx_framegeneration_dx12.dll']
+required=['mcla.exe','rexgpu-xenos.dll','rexruntime.dll','amd_fidelityfx_dx12.dll','amd_fidelityfx_vk.dll','amd_fidelityfx_loader_dx12.dll','amd_fidelityfx_upscaler_dx12.dll','amd_fidelityfx_framegeneration_dx12.dll','amd_fidelityfx_loader_vk.dll','amd_fidelityfx_upscaler_vk.dll','amd_fidelityfx_framegeneration_vk.dll']
 optional=['concrt140.dll','msvcp140.dll','msvcp140_1.dll','msvcp140_2.dll','msvcp140_atomic_wait.dll','msvcp140_codecvt_ids.dll','vccorlib140.dll','vcruntime140.dll','vcruntime140_1.dll','vcruntime140_threads.dll']
 for name in required+optional:
  p=args.runtime/name
  if p.is_file():files['payload/runtime/'+name]=p.read_bytes()
  elif name in required:raise FileNotFoundError(p)
+files['payload/runtime/Jogar-Com-Mods.ps1']=(root/'scripts/Jogar-Com-Mods.ps1').read_bytes()
+# The shader pack (fingerprints and pipeline descriptions only, no game data): mcla.exe imports it into the player's shader storage.
+files['payload/shaderpack/545407F8.shaderpack']=(root/'shaderpack/545407F8.shaderpack').read_bytes()
 files['payload/runtime/game.ico']=(here/'source/assets/setup.ico').read_bytes()
+files['payload/runtime/AMD-FSR-Vulkan-LICENSE.md']=(args.runtime/'AMD-FSR-Vulkan-LICENSE.md').read_bytes()
 files['payload/runtime/AMD-FSR-LICENSE.md']=(args.runtime/'AMD-FSR-LICENSE.md').read_bytes()
 for name in ['LICENSE','CREDITS.md','THIRD-PARTY-NOTICES.md']:files['payload/licenses/'+name]=(root/name).read_bytes()
 files['payload/licenses/ReXGlue-LICENSE.txt']=(root/'third_party/rexglue-sdk/LICENSE').read_bytes()
@@ -25,7 +29,7 @@ for name in ['python.exe','python312.dll','python312.zip','python312._pth','LICE
 # Preserve Python notices outside the internal tool package too.
 files['payload/licenses/Python-LICENSE.txt']=(args.python_dir/'LICENSE.txt').read_bytes()
 project=io.BytesIO()
-inputs=['scripts/extract_game.py','scripts/configure_install.py','localization/build_ptbr.py','localization/update_ptbr.py','localization/pt-BR/native-texts.json','localization/pt-BR/dialogue-pt-BR.json','localization/pt-BR/subtitle-files.json','launcher/dev/shaderpack/build_pack.py','third_party/rexglue-sdk/src/system/xex_module.cpp','third_party/rexglue-sdk/LICENSE']
+inputs=['scripts/extract_game.py','scripts/configure_install.py','localization/build_ptbr.py','localization/update_ptbr.py','localization/mission_font.py','localization/phone_font.py','localization/pt-BR/native-texts.json','localization/pt-BR/dialogue-pt-BR.json','localization/pt-BR/subtitle-files.json','launcher/dev/shaderpack/build_pack.py','third_party/rexglue-sdk/src/system/xex_module.cpp','third_party/rexglue-sdk/LICENSE']
 with zipfile.ZipFile(project,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
  for n in inputs:z.writestr(n,(root/n).read_bytes())
 files['payload/project.zip']=project.getvalue();files['compact_prepare.py']=(here/'source/compact_prepare.py').read_bytes()

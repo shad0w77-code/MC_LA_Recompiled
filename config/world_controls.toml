@@ -1,0 +1,23 @@
+# Retail camera/lighting entry points, checked against this build's guest image.
+# The camera-manager layout/gate is also documented by LARecomp's camera work.
+[[midasm_hook]]
+name = "mcla_free_camera_gate"
+address = 0x822C0644
+jump_address_on_true = 0x822C065C
+
+[[midasm_hook]]
+name = "mcla_free_camera_update"
+address = 0x822C0668
+registers = ["r3", "r1"]
+
+# mcLightingManager update: apply on the owning game thread before lighting.
+[[midasm_hook]]
+name = "mcla_world_update"
+address = 0x822F1DB0
+registers = ["r3"]
+
+# Native Options' category volume setter. Category 1 is music.
+[[midasm_hook]]
+name = "mcla_radio_music_volume"
+address = 0x8238C090
+registers = ["r3", "r4", "f1"]

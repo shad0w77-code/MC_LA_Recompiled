@@ -1,0 +1,18 @@
+# km/h for the speedometer, the distances and the speed-limit sign (src/hud_units.cpp).
+#
+# 0x8238DE54 in sub_8238DDF0, the game's unit formatter: it loads the metric flag (dword_8288E5A0) into
+# r11, 1 for km/h, km and m, 0 for mph. The hook forces the value when mcla_speed_units is "kmh"; true
+# skips the original load.
+[[midasm_hook]]
+name = "mcla_speed_units"
+address = 0x8238DE54
+registers = ["r11"]
+jump_address_on_true = 0x8238DE58
+
+# 0x82206E94 in sub_822068F8, the radar detector's speed-limit sign: it tests bit 0x80 of the byte at
+# mcUILogic+0x515B0 (cmplwi cr6,r8,0) to take mph or the game's own km/h branch, which it never takes.
+# r8 is set from the option before the compare.
+[[midasm_hook]]
+name = "mcla_speed_limit_units"
+address = 0x82206E94
+registers = ["r8"]

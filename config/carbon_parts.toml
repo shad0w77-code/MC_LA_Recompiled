@@ -1,0 +1,18 @@
+# Carbon fibre on any body part (src/carbon_parts.cpp). The part draw loop sub_8235D500 forces the
+# "carbonfiberhood" technique group around a part only for the slots "hood" (2) and "hood_wide" (40):
+#   8235DED0  cmpwi r27, 2 / cmpwi r27, 0x28 ; slot test, then the car's carbon flag (CustomData + 0x898)
+#   8235E038  the same test after the part, which puts the forced group back to -1
+# Both hooks replace the whole block and decide from a per-part bitmask in that same byte.
+# r27 = the part slot, r1 = the stack (CustomData at +0x64, the caller's "carbon allowed" byte at +0x66F),
+# r31 = the vehicle.
+[[midasm_hook]]
+name = "mcla_carbon_part_push"
+address = 0x8235DED0
+registers = ["r1", "r27", "r31"]
+jump_address_on_true = 0x8235DF04
+
+[[midasm_hook]]
+name = "mcla_carbon_part_pop"
+address = 0x8235E038
+registers = ["r1", "r27", "r31"]
+jump_address_on_true = 0x8235E06C

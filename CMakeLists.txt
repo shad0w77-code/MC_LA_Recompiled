@@ -23,15 +23,26 @@ set(MCLA_SOURCES
     src/warp_fix.cpp
     src/button_prompts.cpp
     src/settings_menu.cpp
+    src/world_controls.cpp
     src/display_gamma.cpp
     src/render_markers.cpp
     src/sampling_profiler.cpp
     src/code_pointer_scan.cpp
+    src/car_shader_bind.cpp
+    src/checkpoint_sweep.cpp
+    src/carbon_parts.cpp
+    src/game_radio.cpp
+    src/game_radio_player.cpp
+    src/hud_units.cpp
+    src/stick_deadzone.cpp
+    src/vibration.cpp
     # The shader pack's import and --mcla_prepare_shaders.
     src/shader_prepare.cpp
     src/shader_storage_files.cpp
     # Development: scripted controller input, off by default (fork only).
     src/dev_pad.cpp
+    src/custom_radio.cpp
+    src/font_trace.cpp
 )
 
 if(WIN32)
@@ -45,6 +56,8 @@ rexglue_setup_target(mcla)
 if(WIN32)
     # timeBeginPeriod for the frame limiter.
     target_link_libraries(mcla PRIVATE winmm)
+    # The MP3s of the game radio: Media Foundation decodes them (XAudio2 is loaded at run time).
+    target_link_libraries(mcla PRIVATE mfplat mfreadwrite mfuuid ole32)
     # The shader storage: the display drivers in its stamp, a preparation's memory figures (dxgi, psapi).
     target_link_libraries(mcla PRIVATE dxgi psapi)
 endif()

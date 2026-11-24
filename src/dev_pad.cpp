@@ -43,6 +43,7 @@
 // as fast as the PC can), for A/B measurements only.
 
 #include "generated/default/mcla_init.h"
+#include "custom_radio.h"
 
 #include <algorithm>
 #include <array>
@@ -55,6 +56,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
+#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <mutex>
@@ -102,6 +105,8 @@ REXCVAR_DEFINE_BOOL(mcla_freeze, false, "MCLA",
                     "Development: every game update advances one timer tick (20 ns), so the "
                     "world stands still while frames are still drawn; for comparing frames "
                     "of one moment (A/B of rendering options, temporal AA convergence)");
+REXCVAR_DEFINE_BOOL(mcla_screenshot_hotkey, true, "MCLA",
+                    "Save a PNG of the game output in screenshots/ when F12 is pressed (Windows)");
 
 bool MclaSaveInProgress();  // src/mcla_app.cpp
 
@@ -668,6 +673,62 @@ bool Shot(const std::string& path, double scale, std::string& result) {
   result = std::to_string(width) + "x" + std::to_string(height);
   return true;
 }
+
+#if defined(_WIN32)
+void CaptureScreenshotHotkey() {
+  // Poll on the guest update thread to detect the transition only once, even
+  // while the key is held. Ignore F12 when another application has focus.
+  static bool was_pressed = false;
+  const HWND foreground = GetForegroundWindow();
+  DWORD foreground_pid = 0;
+  if (foreground) {
+    GetWindowThreadProcessId(foreground, &foreground_pid);
+  }
+  const bool pressed = REXCVAR_GET(mcla_screenshot_hotkey) &&
+                       foreground_pid == GetCurrentProcessId() &&
+                       (GetAsyncKeyState(VK_F12) & 0x8000) != 0;
+  const bool just_pressed = pressed && !was_pressed;
+  was_pressed = pressed;
+  if (!just_pressed) {
+    return;
+  }
+
+  wchar_t executable_path[MAX_PATH]{};
+  const DWORD executable_length = GetModuleFileNameW(nullptr, executable_path, MAX_PATH);
+  if (!executable_length || executable_length >= MAX_PATH) {
+    REXLOG_ERROR("screenshot: cannot locate the game executable");
+    return;
+  }
+  std::error_code error;
+  const std::filesystem::path folder =
+      std::filesystem::path(executable_path).parent_path() / "screenshots";
+  if (!std::filesystem::create_directories(folder, error) && error) {
+    REXLOG_ERROR("screenshot: cannot create folder: {}", error.message());
+    return;
+  }
+  const auto now = std::chrono::system_clock::now();
+  const std::time_t local_now = std::chrono::system_clock::to_time_t(now);
+  std::tm local_time{};
+  if (localtime_s(&local_time, &local_now) != 0) {
+    REXLOG_ERROR("screenshot: cannot determine local time");
+    return;
+  }
+  char filename[80]{};
+  const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                now.time_since_epoch()).count() % 1000;
+  std::snprintf(filename, sizeof(filename), "MCLA_%04d%02d%02d_%02d%02d%02d_%03lld.png",
+                local_time.tm_year + 1900, local_time.tm_mon + 1, local_time.tm_mday,
+                local_time.tm_hour, local_time.tm_min, local_time.tm_sec,
+                static_cast<long long>(milliseconds));
+  const std::filesystem::path file = folder / filename;
+  std::string result;
+  if (Shot(file.string(), 1.0, result)) {
+    REXLOG_INFO("screenshot: saved {} ({})", file.string(), result);
+  } else {
+    REXLOG_ERROR("screenshot: {}", result);
+  }
+}
+#endif
 
 // --- Game facts ---
 
@@ -1523,6 +1584,14 @@ std::string Execute(const std::string& line) {
     std::snprintf(text, sizeof text, "ok %08X = %08X", address, word);
     return text;
   }
+  if (cmd == "radio") {
+    if(arg(1)=="next")MclaRadioCommand(2);
+    else if(arg(1)=="previous")MclaRadioCommand(1);
+    else if(arg(1)=="reload")MclaRadioCommand(3);
+    else if(arg(1)=="info")MclaRadioCommand(4);
+    else if(!arg(1).empty()&&arg(1)!="status")return "err radio next|previous|reload|info|status";
+    return "ok "+MclaRadioStatus();
+  }
   if (cmd == "dump") {
     // dump <addr> <bytes> <file>: raw guest memory, for finding state variables.
     uint32_t address;
@@ -2066,6 +2135,9 @@ void MclaDevPadFrame(uint64_t& ticks) {
     }
     return;
   }
+#if defined(_WIN32)
+  CaptureScreenshotHotkey();
+#endif
   if (const int32_t fixed = REXCVAR_GET(mcla_fixed_dt); fixed > 0) {
     ticks = rex::chrono::Clock::guest_tick_frequency() / static_cast<uint64_t>(fixed);
   }

@@ -9,16 +9,16 @@ A recompilação original é de [holdmysocks](https://github.com/holdmysocks/mcl
 
 ## Comece aqui
 
-1. Acesse [Releases](https://github.com/robertoaraujo77/MC_LA_Recompiled/releases) e baixe **Midnight-Club-LA-Recompiled-Windows-x64.zip** da versão mais recente. O arquivo `source.zip` é só o código-fonte.
+1. Acesse [Releases](https://github.com/shad0w77-code/MC_LA_Recompiled/releases) e baixe **Midnight-Club-LA-Recompiled-Windows-x64.zip** da versão mais recente. O arquivo `source.zip` é só o código-fonte.
 2. Extraia o ZIP inteiro para uma pasta estável e abra **Midnight Club L.A. Recompiled.exe**.
 3. Selecione sua própria ISO de **Midnight Club: Los Angeles Complete Edition para Xbox 360**.
 4. Escolha a pasta do jogo. O padrão é uma subpasta ao lado do instalador; você pode mudar o local e o nome.
 5. Deixe marcada a opção **Traduzir o jogo para português (PT-BR)** (padrão), ou desmarque para jogar em inglês.
-6. Se quiser, ajuste **Gráficos** e **Perfil e controles** antes de preparar. Sem alterações, serão usados os padrões descritos abaixo.
+6. Se quiser, ajuste **Gráficos**, **Controles** e **Rádio e Mundo** antes de preparar. Sem alterações, serão usados os padrões descritos abaixo.
 7. Clique em **PREPARAR MEU JOGO**. A aba **Registro** mostra o andamento.
-8. Ao terminar, clique em **JOGAR** ou use o atalho da Área de Trabalho.
+8. Ao terminar, clique em **▶ JOGAR** ou use o atalho da Área de Trabalho.
 
-**Já tem a v1.0.0?** Abra o novo executável, use **Localizar instalação** e clique em **Atualizar**. A ISO não é necessária e seus saves e configurações são mantidos.
+**Atualizações automáticas:** ao abrir o instalador, ele verifica novas releases em [shad0w77-code/MC_LA_Recompiled](https://github.com/shad0w77-code/MC_LA_Recompiled/releases) e oferece o download verificado (SHA-256) e atualização com um clique — sem precisar da ISO e mantendo saves e configurações.
 
 **A ISO e os dados do jogo não são fornecidos.** O assistente prepara localmente os dados da sua cópia usando a versão PC já compilada com as melhorias. Ele não recompila C++ no computador do jogador. Mantenha a ISO fora da pasta de destino.
 
@@ -28,16 +28,16 @@ A recompilação original é de [holdmysocks](https://github.com/holdmysocks/mcl
 
 | Área | Melhorias |
 | --- | --- |
-| Idioma | Menus, telefone, dicas, missões, objetivos, garagem/customização, corridas e avisos em PT-BR; legendas traduzidas onde disponíveis. A tradução é opcional na instalação: vem marcada, e desmarcada o jogo fica em inglês. |
+| Idioma | Menus, telefone, dicas, missões (`RESUMO DAS MISSÕES` com `Õ`/`õ` corrigidos), garagem/customização e avisos em PT-BR; legendas traduzidas onde disponíveis. A tradução é opcional na instalação. |
 | Ultrawide | Automático, 16:9 e 21:9; HUD nos cantos, correções de proporção de telefone, garagem, painéis, GPS, ícones e cursor. |
-| Reconstrução | FSR 4.1.2 (IA) **somente no DirectX 12**, em GPU AMD compatível; Native AA, Qualidade, Equilibrado e Desempenho. |
-| Frame Generation | Provedor AMD 4.0.2 por IA **somente no DirectX 12**, em GPU AMD compatível; opção de ligar/desligar. |
-| Vulkan | FSR 3.1 e seus modos. **FSR 4.1.2 e Frame Generation por IA não estão disponíveis em Vulkan**: o SDK da AMD não os oferece para essa API, e a opção de Frame Generation não gera quadros nesse modo. |
-| Facilidade | Um mesmo executável instala, configura, inicia o jogo e exporta backup; atalho direto para jogar. Quem já tem uma versão anterior atualiza sem a ISO e sem perder os saves. |
+| Reconstrução & 1080p | FSR 4.1.2 (IA) em DirectX 12 e Vulkan (FSR, SDR) em GPU compatível; Native AA, Qualidade, Equilibrado, Desempenho, modo 1080p nativo e shaderpack pré-compilado. |
+| Frame Generation & Latência | Provedor AMD 4.0.2 por IA em DX12 e Vulkan experimental; baixa latência (AMD Anti-Lag 2 / NVIDIA Reflex) e Smooth UI (interpolação de menus/HUD acima de 50 FPS). |
+| Customização, Mundo e Rádio | Fibra de carbono por peça na garagem/pausa, relógio real, velocidade do dia, clima, câmera livre (`F8`), km/h (`SPEED UNITS`) e rádio MP3 integrada às estações do jogo. |
+| Instalador e Atualizador | Visual **LA Midnight Racing** integrado, backups automáticos ao jogar (10 cópias), suporte a mods (`userdata-mods`), controles de vibração/dead zone/MnK e atualizador automático via GitHub Releases. |
 
 Os números FSR identificam os provedores integrados. A seleção efetiva depende de GPU, driver e API e pode ser conferida no registro do jogo. Não há promessa de IA em todas as placas.
 
-**Para usar FSR 4.1.2 e Frame Generation, escolha DirectX 12** em *API gráfica*. O modo Automático deixa o runtime decidir. Em Vulkan, deixe a Frame Generation desligada. O DLSS da NVIDIA não está implementado.
+Escolha **Vulkan** ou **DirectX 12** em *API gráfica* e selecione **FSR** no antisserrilhado. A geração de quadros em Vulkan exige SDR e reinício.
 
 ## Primeira instalação limpa
 
@@ -78,7 +78,7 @@ Capturas do desenvolvimento; opções e desempenho mostrados não representam os
 
 - Testes realizados no Windows, incluindo RX 9060 XT e 3440×1440; outras combinações precisam de validação.
 - Pode ocorrer uma linha verde discreta na borda em alta velocidade com Frame Generation. Desligá-lo eliminou o artefato nos testes relatados.
-- Em Vulkan, FSR 4.1.2 e Frame Generation por IA não existem e a Frame Generation ainda não gera quadros. Use DirectX 12 para esses recursos.
+- Vulkan foi testado com FSR 4.1.2 em uma RX 9060 XT. Consulte o log da sessão para identificar o provedor na sua GPU.
 - Os adesivos (vinyls) dos carros têm a resolução original do jogo, que os monta numa textura de 512×512; de perto, parecem de baixa resolução.
 - Há traduções e legendas que ainda exigem conferência durante toda a campanha. Não é dublagem.
 - Nomes próprios, marcas e músicas permanecem no original.

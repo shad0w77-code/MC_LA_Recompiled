@@ -1,4 +1,4 @@
-param([string]$SdkDirectory = "")
+﻿param([string]$SdkDirectory = "")
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
 if (-not $SdkDirectory) { $SdkDirectory = Join-Path $root 'third_party/rexglue-sdk' }

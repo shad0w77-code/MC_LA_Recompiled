@@ -4,9 +4,14 @@
 #include "generated/default/mcla_init.h"
 
 #include "mcla_app.h"
+#include "custom_radio.h"
 
 #include <chrono>
+#include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <cstdio>
 #include <cwchar>
 #include <filesystem>
@@ -34,6 +39,7 @@
 #include <rex/system/kernel_state.h>
 #include <rex/system/util/object_table.h>
 #include <rex/system/xfile.h>
+#include <rex/ui/keybinds.h>
 
 REXCVAR_DEFINE_STRING(mcla_gpu_backend, "any", "MCLA",
                       "Graphics backend for the Xenos GPU plugin: any, vulkan or d3d12")
@@ -55,7 +61,10 @@ void MclaSaveMenuSettings();  // src/settings_menu.cpp
 bool MclaPrepareShadersIsRequested();  // src/shader_prepare.cpp
 void MclaShaderStorageAfterPreload(rex::Runtime* runtime);
 void MclaMigrateAntiAliasing();  // src/perf_options.cpp
+void MclaRadioStart();  // src/custom_radio.cpp
+void MclaRadioStop();
 void MclaApplyAspectRatio(rex::ui::Window* window);  // src/aspect_ratio.cpp
+void MclaConfigureRenderResolution();
 
 #ifdef _WIN32
 // The pause menu's RESTART GAME (src/settings_menu.cpp) starts the game again
@@ -358,6 +367,7 @@ void MclaApp::OnPreSetup(rex::RuntimeConfig& config) {
   }
   ApplyPcDefaults();
   MclaMigrateAntiAliasing();
+  MclaConfigureRenderResolution();
 
   // Development: scripted controller input (src/dev_pad.cpp), off by default.
   MclaDevPadConfigure(config);
@@ -396,6 +406,35 @@ void MclaApp::ApplyPcDefaults() {
       {"shared_memory_hot_page_ms", "10000"},
       {"edram_tiles", "4096"},
       {"readback_resolve", "fast"},
+      // Driving profile for the existing ReXGlue keyboard/mouse virtual pad.
+      // SetDefaultValue preserves command-line and mcla.toml overrides.
+      {"mnk_mode", "true"},
+      {"mnk_mouse", "true"},
+      {"mnk_sensitivity", "1.0"},
+      {"keybind_right_trigger", "W"},
+      {"keybind_left_trigger", "S"},
+      {"keybind_lstick_up", ""},
+      {"keybind_lstick_down", ""},
+      {"keybind_lstick_left", "A"},
+      {"keybind_lstick_right", "D"},
+      // Arrows navigate game menus without requiring Shift. Mouse is the
+      // default camera; I/J/K/L remain available as keyboard camera keys.
+      {"keybind_dpad_up", "Up"},
+      {"keybind_dpad_down", "Down"},
+      {"keybind_dpad_left", "Left"},
+      {"keybind_dpad_right", "Right"},
+      {"keybind_rstick_up", "I"},
+      {"keybind_rstick_down", "K"},
+      {"keybind_rstick_left", "J"},
+      {"keybind_rstick_right", "L"},
+      {"keybind_a", "Space"},
+      {"keybind_b", "Backspace"},
+      {"keybind_x", "E"},
+      {"keybind_y", "R"},
+      {"keybind_left_shoulder", "Q"},
+      {"keybind_right_shoulder", "F"},
+      {"keybind_start", "Return"},
+      {"keybind_back", "Tab"},
 #if REX_PLATFORM_WIN32
       {"hdr", "auto"},
       {"temporal_aa_quality", "quality"},
@@ -463,6 +502,7 @@ void MclaApp::OnPostSetup() {
   FollowCursorSetting();
 
   MclaDevPadStart(window(), imgui_drawer());
+  MclaRadioStart();
 
   // The game probes for loose city data on a "t:" drive that retail consoles
   // do not have. Give it a device so the probes fail with "not found" rather
@@ -497,8 +537,21 @@ class VideoBorders final : public rex::ui::ImGuiDialog {
     draw->AddRectFilled(ImVec2(size.x-side,0), size, IM_COL32(0,0,0,255));
   }
 };
+
 }
 void MclaApp::OnCreateDialogs(rex::ui::ImGuiDrawer* drawer) {
+  // ReXApp registers these before this callback. Remove the handlers rather
+  // than just clearing their keys: saved/rebound CVARs cannot reactivate them.
+  rex::ui::UnregisterBind("bind_debug_overlay");
+  rex::ui::UnregisterBind("bind_settings");
+  rex::ui::UnregisterBind("bind_console");
+  REXLOG_INFO("Runtime debug, settings and console hotkeys disabled (F3/F4/quote)");
+  MclaRadioInstallHotkeys();
+  radio_overlay_ = MclaRadioCreateOverlay(drawer);
   video_borders_ = std::make_unique<VideoBorders>(drawer);
 }
-void MclaApp::OnShutdown() { video_borders_.reset(); }
+void MclaApp::OnShutdown() {
+  MclaRadioStop();
+  radio_overlay_.reset();
+  video_borders_.reset();
+}

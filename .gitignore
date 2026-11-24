@@ -67,9 +67,12 @@ keys.*
 /launcher.json
 /mcla.toml
 
+# Python bytecode caches
+__pycache__/
+*.pyc
+
 !/docs/INSTALACAO.md
 !/docs/CONFIGURACAO.md
 !/docs/MELHORIAS.md
 !/docs/COMPILACAO.md
 !/docs/images/
-/third_party/

@@ -77,6 +77,35 @@ def backup_saves(target, label):
     return destination
 
 
+def install_shader_pack(bundle, target):
+    """The shader pack goes next to mcla.exe (it holds no game data)."""
+    pack = bundle / 'payload/shaderpack'
+    if pack.is_dir():
+        shutil.copytree(pack, target / 'shaderpack', dirs_exist_ok=True)
+
+
+def prepare_shaders(target):
+    """Rebuild the shaders of the pack from this installation's own game files and let the graphics driver
+    compile them now (mcla.exe --mcla_prepare_shaders=true: hidden window, quits before the game starts).
+    Never fails the installation: without it the game still imports the pack at its first start."""
+    print('Preparando os shaders do jogo (leva alguns segundos)...', flush=True)
+    try:
+        result = subprocess.run([str(target / 'mcla.exe'), '--mcla_prepare_shaders=true'], cwd=str(target),
+                                capture_output=True, text=True, timeout=600)
+    except Exception as error:
+        print('Aviso: os shaders nao foram preparados agora (' + str(error) + '). O jogo os prepara ao iniciar.',
+              flush=True)
+        return
+    for line in result.stdout.splitlines():
+        if line.startswith('SHADERPREP done') or line.startswith('SHADERPREP merge'):
+            print(line, flush=True)
+    if result.returncode == 0:
+        print('Shaders preparados.', flush=True)
+    else:
+        print('Aviso: a preparacao dos shaders terminou com o codigo ' + str(result.returncode)
+              + '. O jogo continua funcionando e tenta de novo ao iniciar.', flush=True)
+
+
 def update_install(bundle, manifest, target):
     """Bring a ready installation to this package's release. No ISO, and neither the
     saves (userdata), the settings (mcla.toml) nor the game data are replaced: only the
@@ -99,6 +128,10 @@ def update_install(bundle, manifest, target):
         if (game / '.mcla-ptbr.json').is_file():
             print('[ETAPA 3/4] Atualizando a traducao PT-BR dos seus dados...', flush=True)
             run(sys.executable, '-u', staging / 'localization/update_ptbr.py', '--game', game)
+            run(sys.executable, '-u', staging / 'localization/mission_font.py', '--game', game,
+                '--runtime', bundle / 'payload/runtime')
+            run(sys.executable, '-u', staging / 'localization/phone_font.py', '--game', game,
+                '--runtime', bundle / 'payload/runtime')
         else:
             print('[ETAPA 3/4] Esta instalacao esta sem traducao; nada a traduzir.', flush=True)
     backup = target / 'backups' / ('runtime-v' + old_release + '-' + time.strftime('%Y%m%d-%H%M%S'))
@@ -115,11 +148,13 @@ def update_install(bundle, manifest, target):
             except PermissionError:
                 fresh.unlink(missing_ok=True)
                 raise ValueError('Nao foi possivel substituir ' + file.name + '. Feche o jogo e tente de novo.')
+    install_shader_pack(bundle, target)
     shutil.copytree(bundle / 'payload/licenses', target / 'licenses', dirs_exist_ok=True)
     marker.update(runtime=manifest.get('runtime_version'), release=new_release)
     fresh = marker_path.with_suffix('.json.new')
     fresh.write_text(json.dumps(marker, indent=2))
     fresh.replace(marker_path)
+    prepare_shaders(target)
     print('[ETAPA 4/4] Pronto! Atualizado para a v' + new_release + '. Saves e configuracoes mantidos.', flush=True)
 
 
@@ -178,6 +213,10 @@ def main():
             print('[ETAPA 3/4] Aplicando a traducao PT-BR aos seus dados...', flush=True)
             localized = staging / 'translated'
             run(sys.executable, '-u', staging / 'localization/build_ptbr.py', '--output', localized)
+            run(sys.executable, '-u', staging / 'localization/mission_font.py', '--game', localized,
+                '--runtime', bundle / 'payload/runtime')
+            run(sys.executable, '-u', staging / 'localization/phone_font.py', '--game', localized,
+                '--runtime', bundle / 'payload/runtime')
         else:
             print('[ETAPA 3/4] Traducao PT-BR desativada: mantendo o jogo em ingles...', flush=True)
             localized = game
@@ -197,6 +236,7 @@ def main():
                 fresh = target / (file.name + '.new-' + uuid.uuid4().hex[:8])
                 shutil.copy2(file, fresh)
                 fresh.replace(target / file.name)
+        install_shader_pack(bundle, target)
         license_root = target / 'licenses'
         shutil.copytree(bundle / 'payload/licenses', license_root, dirs_exist_ok=True)
         settings = target / 'mcla.toml'
@@ -219,6 +259,7 @@ def main():
         marker.write_text(json.dumps(dict(identity=IDENTITY, phase='ready',
             runtime=manifest.get('runtime_version'), release=manifest.get('release_version'),
             translated=translate, executable='mcla.exe'), indent=2))
+    prepare_shaders(target)
     print('[ETAPA 4/4] Pronto! Jogo preparado com suas configuracoes.', flush=True)
 
 

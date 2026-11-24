@@ -18,6 +18,8 @@ try {
 } finally { Pop-Location }
 Run 'python' @("$PSScriptRoot/extract_game.py",$Iso,"$root/game")
 Run 'python' @("$root/localization/build_ptbr.py")
+Run 'python' @("$root/localization/mission_font.py",'--game',"$root/out/localization/pt-BR/game",'--runtime',"$install/bin")
+Run 'python' @("$root/localization/phone_font.py",'--game',"$root/out/localization/pt-BR/game",'--runtime',"$install/bin")
 # O header de menus já acompanha os fontes; não o regenere a partir de outra revisão.
 Push-Location $root
 try {

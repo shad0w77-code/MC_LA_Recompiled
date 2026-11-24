@@ -32,7 +32,7 @@ def prepare(sdk, runtime):
         if target.exists() and digest(target) == item['sha256']:
             continue
         url = (f"https://raw.githubusercontent.com/{manifest['repository']}/"
-               f"{manifest['revision']}/{item['path']}")
+               f"{item.get('revision', manifest['revision'])}/{item['path']}")
         temporary = target.with_name(target.name + '.download-' + uuid.uuid4().hex[:8])
         try:
             print('AMD:', item['path'], flush=True)
@@ -45,6 +45,8 @@ def prepare(sdk, runtime):
         finally:
             temporary.unlink(missing_ok=True)
     shutil.copy2(sdk / 'thirdparty/fsr-redstone/LICENSE.md', runtime / 'AMD-FSR-LICENSE.md')
+    shutil.copy2(sdk / 'thirdparty/fsr-redstone/v2.4/Kits/FidelityFX/docs/license.md',
+                 runtime / 'AMD-FSR-Vulkan-LICENSE.md')
     print('Verified official AMD providers: upscaler 4.1.2; Frame Generation 4.0.2.')
 
 

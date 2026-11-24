@@ -48,6 +48,7 @@ class MclaApp : public rex::ReXApp {
 
  private:
   std::unique_ptr<rex::ui::ImGuiDialog> video_borders_;
+  std::unique_ptr<rex::ui::ImGuiDialog> radio_overlay_;
   void InstallCrashTrace();
   void ConfigureFrameTiming();
   void ApplyPcDefaults();

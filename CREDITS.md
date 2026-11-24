@@ -17,6 +17,8 @@ Essas melhorias não representam autoria da recompilação original nem dos algo
 
 ## Outros componentes
 
+- **mzzvxm / LARecomp** — referência dos pontos de integração e layouts da câmera de desenvolvimento, iluminação e clima, conferidos com o executável desta cópia do jogo: https://github.com/mzzvxm/LARecomp. A implementação local dos controles está em `src/world_controls.cpp`.
+
 - **AMD / GPUOpen** — FidelityFX Super Resolution, Frame Generation e seus provedores. Código aberto e binários mantêm as licenças oficiais correspondentes.
 - **Dyotson / ForzaHorizon1-ReImagined** e **RecompiledHaloReach** — contribuições e abordagens incorporadas pela base, com os avisos MIT preservados.
 - Demais bibliotecas/autores: [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) e licenças dos respectivos projetos.

@@ -1,0 +1,59 @@
+# The MP3 folder as songs of the game's radio (src/game_radio.cpp). Addresses from LARecomp's
+# larecomp_config.toml (custom MP3 radio).
+
+# 0x821EFF4C: `bl sub_821EED18` (RebuildShuffle) at the end of the mcMusicManager constructor
+# sub_821EFB98; r31 = the manager. Both AddSong passes have filled the stations, the shuffle tables
+# are not built yet, so the rows added here are counted like the shipped ones.
+[[midasm_hook]]
+name = "mcla_game_radio_install"
+address = 0x821EFF4C
+registers = ["r31"]
+
+# 0x821EFB5C: `bl sub_821F4E78` in StartCurrentSong (sub_821EF950), which hands the current song's cue
+# to the audio engine; r31 = the manager, +68 the song. A custom row has no cue: true jumps to
+# loc_821EFB78, the tail the "music volume off" path takes.
+[[midasm_hook]]
+name = "mcla_game_radio_start"
+address = 0x821EFB5C
+registers = ["r31"]
+jump_address_on_true = 0x821EFB78
+
+# 0x821F0600: GotoSong(this, index), the entry; r3 = the manager. Every song change.
+[[midasm_hook]]
+name = "mcla_game_radio_select"
+address = 0x821F0600
+registers = ["r3"]
+
+# 0x821F06F0: the end of GotoSong, its `bl nullsub_1` for the current song's log line; r4 = the new
+# song's name key.
+[[midasm_hook]]
+name = "mcla_game_radio_announce"
+address = 0x821F06F0
+registers = ["r4"]
+
+# 0x821EF1F8: mcMusicManager::Stop(this, fade), the entry; r3 = the manager.
+[[midasm_hook]]
+name = "mcla_game_radio_stop"
+address = 0x821EF1F8
+registers = ["r3"]
+
+# 0x821EF158: mcMusicManager::Pause, the entry; r3 = the manager.
+[[midasm_hook]]
+name = "mcla_game_radio_pause"
+address = 0x821EF158
+registers = ["r3"]
+
+# 0x821F0270 / 0x821F0400: the next and previous song of the station (the D-pad on the HUD). Both
+# start with `lwz r10,24(r31); cmpwi cr6,r10,1` and, with that flag set, hand the step to the
+# console's own music player (vtable +36 / +40 of the object at +392) instead of moving the station:
+# the flag a custom row sets. Cleared at the entry, they step the station as for a shipped song, and
+# StartCurrentSong (above) plays the new row. r3 = the manager.
+[[midasm_hook]]
+name = "mcla_game_radio_select"
+address = 0x821F0270
+registers = ["r3"]
+
+[[midasm_hook]]
+name = "mcla_game_radio_select"
+address = 0x821F0400
+registers = ["r3"]
